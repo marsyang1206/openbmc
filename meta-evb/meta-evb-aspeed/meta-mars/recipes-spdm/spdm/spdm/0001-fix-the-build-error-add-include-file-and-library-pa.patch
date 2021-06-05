@@ -1,0 +1,62 @@
+From ca72f1f4b98b9e3ac5061974563a68ba529557b3 Mon Sep 17 00:00:00 2001
+From: Mars <deanjai@gmail.com>
+Date: Sun, 6 Jun 2021 00:37:27 +0800
+Subject: [PATCH] xfix the build error - add include file and library path and
+ modify the build options for gcc
+
+---
+ CMakeLists.txt                            | 13 ++++---------
+ OsStub/BaseCryptLibOpenssl/CMakeLists.txt |  4 ++++
+ 2 files changed, 8 insertions(+), 9 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b7718cf..7cf3ab9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -121,18 +121,11 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+         SET(CMAKE_C_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <OBJECTS> -o <TARGET> -Wl,--start-group <LINK_LIBRARIES> -Wl,--end-group")
+     
+     elseif(TOOLCHAIN STREQUAL "ARM_GCC")
+-        SET(CMAKE_C_COMPILER arm-linux-gnueabi-gcc) 
+-        SET(CMAKE_C_FLAGS "-g -fshort-wchar -fno-strict-aliasing -Wall -Werror -Wno-array-bounds -ffunction-sections -fdata-sections -fno-common -Wno-address -fpie -fno-asynchronous-unwind-tables -flto -DUSING_LTO -Wno-switch -Wno-maybe-uninitialized -Wno-uninitialized  -Wno-builtin-declaration-mismatch -Wno-nonnull-compare --coverage -fprofile-arcs -ftest-coverage")
+         SET(MBEDTLS_FLAGS "")
+-        SET(OPENSSL_FLAGS "-include Base.h -Wno-error=maybe-uninitialized -Wno-error=format -Wno-format -Wno-error=unused-but-set-variable")
++        SET(OPENSSL_FLAGS "-include Base.h -Wno-error=maybe-uninitialized -Wno-error=unused-but-set-variable")
+         SET(CMOCKA_FLAGS "-std=gnu99 -Wpedantic -Wall -Wshadow -Wmissing-prototypes -Wcast-align -Werror=address -Wstrict-prototypes -Werror=strict-prototypes -Wwrite-strings -Werror=write-strings -Werror-implicit-function-declaration -Wpointer-arith -Werror=pointer-arith -Wdeclaration-after-statement -Werror=declaration-after-statement -Wreturn-type -Werror=return-type -Wuninitialized -Werror=uninitialized -Werror=strict-overflow -Wstrict-overflow=2 -Wno-format-zero-length -Wmissing-field-initializers -Wformat-security -Werror=format-security -fno-common -Wformat -fno-common -fstack-protector-strong")
+-        
+-        SET(CMAKE_AR arm-linux-gnueabi-gcc-ar)
+-        
+-        SET(CMAKE_LINKER arm-linux-gnueabi-gcc)
+-        SET(CMAKE_EXE_LINKER_FLAGS "-flto -Wno-error -no-pie --coverage -lgcov -fprofile-arcs -ftest-coverage" )
+ 
+-        SET(CMAKE_C_LINK_EXECUTABLE "<CMAKE_LINKER> <LINK_FLAGS> <OBJECTS> -o <TARGET> -Wl,--start-group <LINK_LIBRARIES> -Wl,--end-group")
++        SET(CMAKE_C_LINK_EXECUTABLE "<CMAKE_C_COMPILER>  <CMAKE_C_LINK_FLAGS> <OBJECTS> -o <TARGET> -Wl,--start-group <LINK_LIBRARIES> -Wl,--end-group")
+     
+     elseif(TOOLCHAIN STREQUAL "AARCH64_GCC")
+         SET(CMAKE_C_COMPILER aarch64-linux-gnu-gcc) 
+@@ -428,6 +421,8 @@ if(TESTTYPE STREQUAL "SpdmEmu")
+             OsStub/BaseMemoryLib
+             OsStub/DebugLib
+             OsStub/RngLib
++            OsStub/SpdmDeviceSecretLibNull
++            OsStub/DebugLibNull
+             OsStub/MemoryAllocationLib
+             SpdmEmu/SpdmDeviceSecretLib
+     )
+diff --git a/OsStub/BaseCryptLibOpenssl/CMakeLists.txt b/OsStub/BaseCryptLibOpenssl/CMakeLists.txt
+index 643d225..422c0b6 100644
+--- a/OsStub/BaseCryptLibOpenssl/CMakeLists.txt
++++ b/OsStub/BaseCryptLibOpenssl/CMakeLists.txt
+@@ -6,8 +6,12 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/Include
+                     ${PROJECT_SOURCE_DIR}/OsStub/Include
+                     ${PROJECT_SOURCE_DIR}/OsStub/BaseCryptLibOpenssl
+                     ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/Include
++                    ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl
+                     ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl/include
+                     ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl/crypto/include
++                    ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl/crypto
++                    ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl/crypto/evp/
++                    ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl/crypto/evp/
+ )
+ 
+ SET(src_BaseCryptLibOpenssl

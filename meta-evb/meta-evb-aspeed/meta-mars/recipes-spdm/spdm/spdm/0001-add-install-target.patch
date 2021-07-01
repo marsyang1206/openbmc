@@ -1,0 +1,56 @@
+From 0682764eddb8ba89130751da772f17e3411d3e38 Mon Sep 17 00:00:00 2001
+From: Mars <deanjai@gmail.com>
+Date: Thu, 10 Jun 2021 00:14:03 +0800
+Subject: [PATCH] add install target
+
+---
+ CMakeLists.txt                          | 2 --
+ SpdmDump/CMakeLists.txt                 | 1 +
+ SpdmEmu/SpdmRequesterEmu/CMakeLists.txt | 1 +
+ SpdmEmu/SpdmResponderEmu/CMakeLists.txt | 2 ++
+ 4 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 7cf3ab9..91a3ff0 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -382,8 +382,6 @@ elseif(TOOLCHAIN STREQUAL "VS2019")
+     endif()
+ endif()
+     
+-SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
+-SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
+ 
+ ADD_CUSTOM_TARGET(CopyTestKey)
+ 
+diff --git a/SpdmDump/CMakeLists.txt b/SpdmDump/CMakeLists.txt
+index 35cefb2..75aed9e 100644
+--- a/SpdmDump/CMakeLists.txt
++++ b/SpdmDump/CMakeLists.txt
+@@ -57,3 +57,4 @@ else()
+     ADD_EXECUTABLE(SpdmDump ${src_SpdmDump})
+     TARGET_LINK_LIBRARIES(SpdmDump ${SpdmDump_LIBRARY})
+ endif()
++install(TARGETS SpdmDump DESTINATION bin)
+diff --git a/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt b/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt
+index e8a10f2..afda924 100644
+--- a/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt
++++ b/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt
+@@ -60,3 +60,4 @@ else()
+     ADD_EXECUTABLE(SpdmRequesterEmu ${src_SpdmRequesterTest})
+     TARGET_LINK_LIBRARIES(SpdmRequesterEmu ${SpdmRequesterTest_LIBRARY})
+ endif()
++install(TARGETS SpdmRequesterEmu DESTINATION bin)
+diff --git a/SpdmEmu/SpdmResponderEmu/CMakeLists.txt b/SpdmEmu/SpdmResponderEmu/CMakeLists.txt
+index 4f4c715..1a06f9c 100644
+--- a/SpdmEmu/SpdmResponderEmu/CMakeLists.txt
++++ b/SpdmEmu/SpdmResponderEmu/CMakeLists.txt
+@@ -55,6 +55,8 @@ if((TOOLCHAIN STREQUAL "KLEE") OR (TOOLCHAIN STREQUAL "CBMC"))
+                    $<TARGET_OBJECTS:SpdmDeviceSecretLib>
+     ) 
+ else()
++    add_library (ShrLib SHARED ${SpdmResponderTest_LIBRARY})
+     ADD_EXECUTABLE(SpdmResponderEmu ${src_SpdmResponderTest})
+     TARGET_LINK_LIBRARIES(SpdmResponderEmu ${SpdmResponderTest_LIBRARY})
+ endif()
++install(TARGETS SpdmResponderEmu DESTINATION bin)

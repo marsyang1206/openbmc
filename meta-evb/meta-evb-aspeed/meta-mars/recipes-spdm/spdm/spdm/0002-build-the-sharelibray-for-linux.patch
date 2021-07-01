@@ -1,0 +1,405 @@
+From 54e8d03e837ea532d042ac2eabf5b8316cf387a0 Mon Sep 17 00:00:00 2001
+From: Mars <deanjai@gmail.com>
+Date: Fri, 2 Jul 2021 01:02:26 +0800
+Subject: [PATCH] build the sharelibray for linux
+
+---
+ CMakeLists.txt                                |  7 ++--
+ Library/SpdmCommonLib/CMakeLists.txt          |  2 +-
+ Library/SpdmCryptLib/CMakeLists.txt           |  2 +-
+ Library/SpdmRequesterLib/CMakeLists.txt       |  2 +-
+ Library/SpdmResponderLib/CMakeLists.txt       |  2 +-
+ Library/SpdmSecuredMessageLib/CMakeLists.txt  |  2 +-
+ Library/SpdmTransportMctpLib/CMakeLists.txt   |  2 +-
+ Library/SpdmTransportPciDoeLib/CMakeLists.txt |  2 +-
+ OsStub/BaseCryptLibMbedTls/CMakeLists.txt     |  2 +-
+ OsStub/BaseCryptLibOpenssl/CMakeLists.txt     |  2 +-
+ OsStub/BaseMemoryLib/CMakeLists.txt           |  2 +-
+ OsStub/DebugLib/CMakeLists.txt                |  2 +-
+ OsStub/DebugLibNull/CMakeLists.txt            |  2 +-
+ OsStub/MbedTlsLib/CMakeLists.txt              |  2 +-
+ OsStub/MemoryAllocationLib/CMakeLists.txt     |  2 +-
+ OsStub/OpensslLib/CMakeLists.txt              |  2 +-
+ OsStub/RngLib/CMakeLists.txt                  |  2 +-
+ OsStub/SpdmDeviceSecretLibNull/CMakeLists.txt |  2 +-
+ SpdmDump/CMakeLists.txt                       |  2 +-
+ SpdmEmu/SpdmDeviceSecretLib/CMakeLists.txt    |  2 +-
+ SpdmEmu/SpdmRequesterEmu/CMakeLists.txt       | 34 +++++++++----------
+ SpdmEmu/SpdmResponderEmu/CMakeLists.txt       |  3 +-
+ UnitTest/CmockaLib/CMakeLists.txt             |  2 +-
+ UnitTest/SpdmTransportTestLib/CMakeLists.txt  |  2 +-
+ .../TestSize/BaseCryptLibDummy/CMakeLists.txt |  2 +-
+ .../BaseCryptStubLibDummy/CMakeLists.txt      |  2 +-
+ UnitTest/TestSize/IntrinsicLib/CMakeLists.txt |  2 +-
+ .../MemoryAllocationLibNull/CMakeLists.txt    |  2 +-
+ UnitTest/TestSize/RngLibNull/CMakeLists.txt   |  2 +-
+ 29 files changed, 46 insertions(+), 50 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 91a3ff0..5ca40a1 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -108,7 +108,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+ 
+     if(TOOLCHAIN STREQUAL "GCC")
+         SET(CMAKE_C_COMPILER gcc) 
+-        SET(CMAKE_C_FLAGS "-g -fshort-wchar -fno-strict-aliasing -Wall -Werror -Wno-array-bounds -ffunction-sections -fdata-sections -fno-common -maccumulate-outgoing-args -mno-red-zone -Wno-address -fpie -fno-asynchronous-unwind-tables -flto -DUSING_LTO -Wno-switch -Wno-maybe-uninitialized -Wno-uninitialized  -Wno-builtin-declaration-mismatch -Wno-nonnull-compare --coverage -fprofile-arcs -ftest-coverage")
++        SET(CMAKE_C_FLAGS "-g -fPIC -fshort-wchar -fno-strict-aliasing -Wall -Werror -Wno-array-bounds -ffunction-sections -fdata-sections -fno-common -maccumulate-outgoing-args -mno-red-zone -Wno-address -fpie -fno-asynchronous-unwind-tables -flto -DUSING_LTO -Wno-switch -Wno-maybe-uninitialized -Wno-uninitialized  -Wno-builtin-declaration-mismatch -Wno-nonnull-compare --coverage -fprofile-arcs -ftest-coverage")
+         SET(MBEDTLS_FLAGS "")
+         SET(OPENSSL_FLAGS "-include Base.h -Wno-error=maybe-uninitialized -Wno-error=format -Wno-format -Wno-error=unused-but-set-variable")
+         SET(CMOCKA_FLAGS "-std=gnu99 -Wpedantic -Wall -Wshadow -Wmissing-prototypes -Wcast-align -Werror=address -Wstrict-prototypes -Werror=strict-prototypes -Wwrite-strings -Werror=write-strings -Werror-implicit-function-declaration -Wpointer-arith -Werror=pointer-arith -Wdeclaration-after-statement -Werror=declaration-after-statement -Wreturn-type -Werror=return-type -Wuninitialized -Werror=uninitialized -Werror=strict-overflow -Wstrict-overflow=2 -Wno-format-zero-length -Wmissing-field-initializers -Wformat-security -Werror=format-security -fno-common -Wformat -fno-common -fstack-protector-strong")
+@@ -125,7 +125,8 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+         SET(OPENSSL_FLAGS "-include Base.h -Wno-error=maybe-uninitialized -Wno-error=unused-but-set-variable")
+         SET(CMOCKA_FLAGS "-std=gnu99 -Wpedantic -Wall -Wshadow -Wmissing-prototypes -Wcast-align -Werror=address -Wstrict-prototypes -Werror=strict-prototypes -Wwrite-strings -Werror=write-strings -Werror-implicit-function-declaration -Wpointer-arith -Werror=pointer-arith -Wdeclaration-after-statement -Werror=declaration-after-statement -Wreturn-type -Werror=return-type -Wuninitialized -Werror=uninitialized -Werror=strict-overflow -Wstrict-overflow=2 -Wno-format-zero-length -Wmissing-field-initializers -Wformat-security -Werror=format-security -fno-common -Wformat -fno-common -fstack-protector-strong")
+ 
+-        SET(CMAKE_C_LINK_EXECUTABLE "<CMAKE_C_COMPILER>  <CMAKE_C_LINK_FLAGS> <OBJECTS> -o <TARGET> -Wl,--start-group <LINK_LIBRARIES> -Wl,--end-group")
++        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
++        SET(CMAKE_EXE_LINKER_FLAGS "-flto -Wno-error --coverage -lgcov -fprofile-arcs -ftest-coverage")
+     
+     elseif(TOOLCHAIN STREQUAL "AARCH64_GCC")
+         SET(CMAKE_C_COMPILER aarch64-linux-gnu-gcc) 
+@@ -426,8 +427,6 @@ if(TESTTYPE STREQUAL "SpdmEmu")
+     )
+             
+     SUBDIRS(SpdmEmu/SpdmRequesterEmu
+-            SpdmEmu/SpdmResponderEmu
+-            SpdmDump
+     )
+        
+ elseif(TESTTYPE STREQUAL "UnitTest")
+diff --git a/Library/SpdmCommonLib/CMakeLists.txt b/Library/SpdmCommonLib/CMakeLists.txt
+index 5f31bb4..5e50196 100644
+--- a/Library/SpdmCommonLib/CMakeLists.txt
++++ b/Library/SpdmCommonLib/CMakeLists.txt
+@@ -15,4 +15,4 @@ SET(src_SpdmCommonLib
+     SpdmCommonLibSupport.c
+ )
+ 
+-ADD_LIBRARY(SpdmCommonLib STATIC ${src_SpdmCommonLib})
++ADD_LIBRARY(SpdmCommonLib OBJECT ${src_SpdmCommonLib})
+diff --git a/Library/SpdmCryptLib/CMakeLists.txt b/Library/SpdmCryptLib/CMakeLists.txt
+index 42c454c..4ccca32 100644
+--- a/Library/SpdmCryptLib/CMakeLists.txt
++++ b/Library/SpdmCryptLib/CMakeLists.txt
+@@ -10,4 +10,4 @@ SET(src_SpdmCryptLib
+     SpdmCryptLib.c
+ )
+ 
+-ADD_LIBRARY(SpdmCryptLib STATIC ${src_SpdmCryptLib})
++ADD_LIBRARY(SpdmCryptLib OBJECT ${src_SpdmCryptLib})
+diff --git a/Library/SpdmRequesterLib/CMakeLists.txt b/Library/SpdmRequesterLib/CMakeLists.txt
+index 8ef1204..b2fd931 100644
+--- a/Library/SpdmRequesterLib/CMakeLists.txt
++++ b/Library/SpdmRequesterLib/CMakeLists.txt
+@@ -33,4 +33,4 @@ SET(src_SpdmRequesterLib
+     SpdmRequesterLibSendReceive.c
+ )
+ 
+-ADD_LIBRARY(SpdmRequesterLib STATIC ${src_SpdmRequesterLib})
++ADD_LIBRARY(SpdmRequesterLib OBJECT ${src_SpdmRequesterLib})
+diff --git a/Library/SpdmResponderLib/CMakeLists.txt b/Library/SpdmResponderLib/CMakeLists.txt
+index 06315eb..477d328 100644
+--- a/Library/SpdmResponderLib/CMakeLists.txt
++++ b/Library/SpdmResponderLib/CMakeLists.txt
+@@ -34,4 +34,4 @@ SET(src_SpdmResponderLib
+     SpdmResponderLibVersion.c
+ )
+ 
+-ADD_LIBRARY(SpdmResponderLib STATIC ${src_SpdmResponderLib})
+\ No newline at end of file
++ADD_LIBRARY(SpdmResponderLib OBJECT ${src_SpdmResponderLib})
+\ No newline at end of file
+diff --git a/Library/SpdmSecuredMessageLib/CMakeLists.txt b/Library/SpdmSecuredMessageLib/CMakeLists.txt
+index c213cf2..5a4506f 100644
+--- a/Library/SpdmSecuredMessageLib/CMakeLists.txt
++++ b/Library/SpdmSecuredMessageLib/CMakeLists.txt
+@@ -13,4 +13,4 @@ SET(src_SpdmSecuredMessageLib
+     SpdmSecuredMessageLibSession.c
+ )
+ 
+-ADD_LIBRARY(SpdmSecuredMessageLib STATIC ${src_SpdmSecuredMessageLib})
++ADD_LIBRARY(SpdmSecuredMessageLib OBJECT ${src_SpdmSecuredMessageLib})
+diff --git a/Library/SpdmTransportMctpLib/CMakeLists.txt b/Library/SpdmTransportMctpLib/CMakeLists.txt
+index 4b6db94..f57822f 100644
+--- a/Library/SpdmTransportMctpLib/CMakeLists.txt
++++ b/Library/SpdmTransportMctpLib/CMakeLists.txt
+@@ -11,4 +11,4 @@ SET(src_SpdmTransportMctpLib
+     SpdmTransportMctpLib.c
+ )
+ 
+-ADD_LIBRARY(SpdmTransportMctpLib STATIC ${src_SpdmTransportMctpLib})
++ADD_LIBRARY(SpdmTransportMctpLib OBJECT ${src_SpdmTransportMctpLib})
+diff --git a/Library/SpdmTransportPciDoeLib/CMakeLists.txt b/Library/SpdmTransportPciDoeLib/CMakeLists.txt
+index 6e19f1c..a403e86 100644
+--- a/Library/SpdmTransportPciDoeLib/CMakeLists.txt
++++ b/Library/SpdmTransportPciDoeLib/CMakeLists.txt
+@@ -11,4 +11,4 @@ SET(src_SpdmTransportPciDoeLib
+     SpdmTransportPciDoeLib.c
+ )
+ 
+-ADD_LIBRARY(SpdmTransportPciDoeLib STATIC ${src_SpdmTransportPciDoeLib})
++ADD_LIBRARY(SpdmTransportPciDoeLib OBJECT ${src_SpdmTransportPciDoeLib})
+diff --git a/OsStub/BaseCryptLibMbedTls/CMakeLists.txt b/OsStub/BaseCryptLibMbedTls/CMakeLists.txt
+index bb54628..9b678b4 100644
+--- a/OsStub/BaseCryptLibMbedTls/CMakeLists.txt
++++ b/OsStub/BaseCryptLibMbedTls/CMakeLists.txt
+@@ -44,4 +44,4 @@ SET(src_BaseCryptLibMbedTls
+     SysCall/TimerWrapperHost.c
+ )
+ 
+-ADD_LIBRARY(BaseCryptLibMbedTls STATIC ${src_BaseCryptLibMbedTls})
++ADD_LIBRARY(BaseCryptLibMbedTls OBJECT ${src_BaseCryptLibMbedTls})
+diff --git a/OsStub/BaseCryptLibOpenssl/CMakeLists.txt b/OsStub/BaseCryptLibOpenssl/CMakeLists.txt
+index 422c0b6..0c331bd 100644
+--- a/OsStub/BaseCryptLibOpenssl/CMakeLists.txt
++++ b/OsStub/BaseCryptLibOpenssl/CMakeLists.txt
+@@ -45,4 +45,4 @@ SET(src_BaseCryptLibOpenssl
+     SysCall/CrtWrapperHost.c
+ )
+ 
+-ADD_LIBRARY(BaseCryptLibOpenssl STATIC ${src_BaseCryptLibOpenssl})
++ADD_LIBRARY(BaseCryptLibOpenssl OBJECT ${src_BaseCryptLibOpenssl})
+diff --git a/OsStub/BaseMemoryLib/CMakeLists.txt b/OsStub/BaseMemoryLib/CMakeLists.txt
+index 286e212..33721da 100644
+--- a/OsStub/BaseMemoryLib/CMakeLists.txt
++++ b/OsStub/BaseMemoryLib/CMakeLists.txt
+@@ -12,4 +12,4 @@ SET(src_BaseMemoryLib
+     ZeroMem.c
+ )
+ 
+-ADD_LIBRARY(BaseMemoryLib STATIC ${src_BaseMemoryLib})
++ADD_LIBRARY(BaseMemoryLib OBJECT ${src_BaseMemoryLib})
+diff --git a/OsStub/DebugLib/CMakeLists.txt b/OsStub/DebugLib/CMakeLists.txt
+index 890fa7e..351e07b 100644
+--- a/OsStub/DebugLib/CMakeLists.txt
++++ b/OsStub/DebugLib/CMakeLists.txt
+@@ -9,4 +9,4 @@ SET(src_DebugLib
+     DebugLib.c
+ )
+ 
+-ADD_LIBRARY(DebugLib STATIC ${src_DebugLib})
++ADD_LIBRARY(DebugLib OBJECT ${src_DebugLib})
+diff --git a/OsStub/DebugLibNull/CMakeLists.txt b/OsStub/DebugLibNull/CMakeLists.txt
+index eb47738..4ca4f08 100644
+--- a/OsStub/DebugLibNull/CMakeLists.txt
++++ b/OsStub/DebugLibNull/CMakeLists.txt
+@@ -9,4 +9,4 @@ SET(src_DebugLibNull
+     DebugLib.c
+ )
+ 
+-ADD_LIBRARY(DebugLibNull STATIC ${src_DebugLibNull})
++ADD_LIBRARY(DebugLibNull OBJECT ${src_DebugLibNull})
+diff --git a/OsStub/MbedTlsLib/CMakeLists.txt b/OsStub/MbedTlsLib/CMakeLists.txt
+index e99c9f8..6934f9a 100644
+--- a/OsStub/MbedTlsLib/CMakeLists.txt
++++ b/OsStub/MbedTlsLib/CMakeLists.txt
+@@ -99,4 +99,4 @@ SET(src_MbedTlsLib
+     mbedtls/library/xtea.c
+ )
+ 
+-ADD_LIBRARY(MbedTlsLib STATIC ${src_MbedTlsLib})
++ADD_LIBRARY(MbedTlsLib OBJECT ${src_MbedTlsLib})
+diff --git a/OsStub/MemoryAllocationLib/CMakeLists.txt b/OsStub/MemoryAllocationLib/CMakeLists.txt
+index 0345245..85cb343 100644
+--- a/OsStub/MemoryAllocationLib/CMakeLists.txt
++++ b/OsStub/MemoryAllocationLib/CMakeLists.txt
+@@ -9,4 +9,4 @@ SET(src_MemoryAllocationLib
+     MemoryAllocationLib.c
+ )
+ 
+-ADD_LIBRARY(MemoryAllocationLib STATIC ${src_MemoryAllocationLib})
++ADD_LIBRARY(MemoryAllocationLib OBJECT ${src_MemoryAllocationLib})
+diff --git a/OsStub/OpensslLib/CMakeLists.txt b/OsStub/OpensslLib/CMakeLists.txt
+index dcb18c2..166d832 100644
+--- a/OsStub/OpensslLib/CMakeLists.txt
++++ b/OsStub/OpensslLib/CMakeLists.txt
+@@ -543,4 +543,4 @@ SET(src_OpensslLib
+     rand_pool.c
+ )
+ 
+-ADD_LIBRARY(OpensslLib STATIC ${src_OpensslLib})
++ADD_LIBRARY(OpensslLib OBJECT ${src_OpensslLib})
+diff --git a/OsStub/RngLib/CMakeLists.txt b/OsStub/RngLib/CMakeLists.txt
+index 81738cd..f78fc03 100644
+--- a/OsStub/RngLib/CMakeLists.txt
++++ b/OsStub/RngLib/CMakeLists.txt
+@@ -9,4 +9,4 @@ SET(src_RngLib
+     RngLib.c
+ )
+ 
+-ADD_LIBRARY(RngLib STATIC ${src_RngLib})
++ADD_LIBRARY(RngLib OBJECT ${src_RngLib})
+diff --git a/OsStub/SpdmDeviceSecretLibNull/CMakeLists.txt b/OsStub/SpdmDeviceSecretLibNull/CMakeLists.txt
+index 5c094b0..4e44fa1 100644
+--- a/OsStub/SpdmDeviceSecretLibNull/CMakeLists.txt
++++ b/OsStub/SpdmDeviceSecretLibNull/CMakeLists.txt
+@@ -10,4 +10,4 @@ SET(src_SpdmDeviceSecretLibNull
+     SpdmDeviceSecretLib.c
+ )
+ 
+-ADD_LIBRARY(SpdmDeviceSecretLibNull STATIC ${src_SpdmDeviceSecretLibNull})
++ADD_LIBRARY(SpdmDeviceSecretLibNull OBJECT ${src_SpdmDeviceSecretLibNull})
+diff --git a/SpdmDump/CMakeLists.txt b/SpdmDump/CMakeLists.txt
+index 75aed9e..91f136a 100644
+--- a/SpdmDump/CMakeLists.txt
++++ b/SpdmDump/CMakeLists.txt
+@@ -26,7 +26,7 @@ SET(SpdmDump_LIBRARY
+     BaseMemoryLib
+     DebugLibNull
+     SpdmCommonLib
+-    ${CRYPTO}Lib
++    #    ${CRYPTO}Lib
+     RngLib
+     BaseCryptLib${CRYPTO}
+     MemoryAllocationLib
+diff --git a/SpdmEmu/SpdmDeviceSecretLib/CMakeLists.txt b/SpdmEmu/SpdmDeviceSecretLib/CMakeLists.txt
+index 0229f7c..39794bb 100644
+--- a/SpdmEmu/SpdmDeviceSecretLib/CMakeLists.txt
++++ b/SpdmEmu/SpdmDeviceSecretLib/CMakeLists.txt
+@@ -11,4 +11,4 @@ SET(src_SpdmDeviceSecretLib
+     SpdmDeviceSecretLibCert.c
+ )
+ 
+-ADD_LIBRARY(SpdmDeviceSecretLib STATIC ${src_SpdmDeviceSecretLib})
++ADD_LIBRARY(SpdmDeviceSecretLib OBJECT ${src_SpdmDeviceSecretLib})
+diff --git a/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt b/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt
+index afda924..fb11849 100644
+--- a/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt
++++ b/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt
+@@ -23,21 +23,6 @@ SET(src_SpdmRequesterTest
+     ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuSupport.c
+ )
+ 
+-SET(SpdmRequesterTest_LIBRARY
+-    BaseMemoryLib
+-    DebugLib
+-    SpdmRequesterLib
+-    SpdmCommonLib
+-    ${CRYPTO}Lib
+-    RngLib
+-    BaseCryptLib${CRYPTO}
+-    MemoryAllocationLib
+-    SpdmCryptLib
+-    SpdmSecuredMessageLib
+-    SpdmTransportMctpLib
+-    SpdmTransportPciDoeLib
+-    SpdmDeviceSecretLib
+-)
+ 
+ if((TOOLCHAIN STREQUAL "KLEE") OR (TOOLCHAIN STREQUAL "CBMC"))
+     ADD_EXECUTABLE(SpdmRequesterEmu
+@@ -57,7 +42,20 @@ if((TOOLCHAIN STREQUAL "KLEE") OR (TOOLCHAIN STREQUAL "CBMC"))
+                    $<TARGET_OBJECTS:SpdmDeviceSecretLib>
+     ) 
+ else()
+-    ADD_EXECUTABLE(SpdmRequesterEmu ${src_SpdmRequesterTest})
+-    TARGET_LINK_LIBRARIES(SpdmRequesterEmu ${SpdmRequesterTest_LIBRARY})
++    ADD_LIBRARY(SpdmRequesterEmu SHARED
++                   ${src_SpdmRequesterTest}
++                   $<TARGET_OBJECTS:BaseMemoryLib>
++                   $<TARGET_OBJECTS:DebugLib>
++                   $<TARGET_OBJECTS:SpdmRequesterLib>
++                   $<TARGET_OBJECTS:SpdmCommonLib>
++                   $<TARGET_OBJECTS:RngLib>
++                   $<TARGET_OBJECTS:BaseCryptLib${CRYPTO}>
++                   $<TARGET_OBJECTS:MemoryAllocationLib>
++                   $<TARGET_OBJECTS:SpdmCryptLib>
++                   $<TARGET_OBJECTS:SpdmSecuredMessageLib>
++                   $<TARGET_OBJECTS:SpdmTransportMctpLib>
++                   $<TARGET_OBJECTS:SpdmTransportPciDoeLib>
++                   $<TARGET_OBJECTS:SpdmDeviceSecretLib>
++    )
+ endif()
+-install(TARGETS SpdmRequesterEmu DESTINATION bin)
++install(TARGETS SpdmRequesterEmu DESTINATION lib)
+diff --git a/SpdmEmu/SpdmResponderEmu/CMakeLists.txt b/SpdmEmu/SpdmResponderEmu/CMakeLists.txt
+index 1a06f9c..5f66aa6 100644
+--- a/SpdmEmu/SpdmResponderEmu/CMakeLists.txt
++++ b/SpdmEmu/SpdmResponderEmu/CMakeLists.txt
+@@ -26,7 +26,7 @@ SET(SpdmResponderTest_LIBRARY
+     DebugLib
+     SpdmResponderLib
+     SpdmCommonLib
+-    ${CRYPTO}Lib
++    #    ${CRYPTO}Lib
+     RngLib
+     BaseCryptLib${CRYPTO}
+     MemoryAllocationLib
+@@ -55,7 +55,6 @@ if((TOOLCHAIN STREQUAL "KLEE") OR (TOOLCHAIN STREQUAL "CBMC"))
+                    $<TARGET_OBJECTS:SpdmDeviceSecretLib>
+     ) 
+ else()
+-    add_library (ShrLib SHARED ${SpdmResponderTest_LIBRARY})
+     ADD_EXECUTABLE(SpdmResponderEmu ${src_SpdmResponderTest})
+     TARGET_LINK_LIBRARIES(SpdmResponderEmu ${SpdmResponderTest_LIBRARY})
+ endif()
+diff --git a/UnitTest/CmockaLib/CMakeLists.txt b/UnitTest/CmockaLib/CMakeLists.txt
+index e90a732..d0b745c 100644
+--- a/UnitTest/CmockaLib/CMakeLists.txt
++++ b/UnitTest/CmockaLib/CMakeLists.txt
+@@ -18,4 +18,4 @@ SET(src_CmockaLib
+     cmocka/src/cmocka.c
+ )
+ 
+-ADD_LIBRARY(CmockaLib STATIC ${src_CmockaLib})
++ADD_LIBRARY(CmockaLib OBJECT ${src_CmockaLib})
+diff --git a/UnitTest/SpdmTransportTestLib/CMakeLists.txt b/UnitTest/SpdmTransportTestLib/CMakeLists.txt
+index 913557f..b779d9a 100644
+--- a/UnitTest/SpdmTransportTestLib/CMakeLists.txt
++++ b/UnitTest/SpdmTransportTestLib/CMakeLists.txt
+@@ -13,4 +13,4 @@ SET(src_SpdmTransportTestLib
+     SpdmTransportTestLib.c
+ )
+ 
+-ADD_LIBRARY(SpdmTransportTestLib STATIC ${src_SpdmTransportTestLib})
++ADD_LIBRARY(SpdmTransportTestLib OBJECT ${src_SpdmTransportTestLib})
+diff --git a/UnitTest/TestSize/BaseCryptLibDummy/CMakeLists.txt b/UnitTest/TestSize/BaseCryptLibDummy/CMakeLists.txt
+index 2a2613d..9e15ed3 100644
+--- a/UnitTest/TestSize/BaseCryptLibDummy/CMakeLists.txt
++++ b/UnitTest/TestSize/BaseCryptLibDummy/CMakeLists.txt
+@@ -32,4 +32,4 @@ SET(src_BaseCryptLibDummy
+     Rand/CryptRand.c
+ )
+ 
+-ADD_LIBRARY(BaseCryptLibDummy STATIC ${src_BaseCryptLibDummy})
++ADD_LIBRARY(BaseCryptLibDummy OBJECT ${src_BaseCryptLibDummy})
+diff --git a/UnitTest/TestSize/BaseCryptStubLibDummy/CMakeLists.txt b/UnitTest/TestSize/BaseCryptStubLibDummy/CMakeLists.txt
+index 3613fd9..4585414 100644
+--- a/UnitTest/TestSize/BaseCryptStubLibDummy/CMakeLists.txt
++++ b/UnitTest/TestSize/BaseCryptStubLibDummy/CMakeLists.txt
+@@ -15,4 +15,4 @@ SET(src_BaseCryptStubLibDummy
+     TimeClockDummy.c
+ )
+ 
+-ADD_LIBRARY(BaseCryptStubLibDummy STATIC ${src_BaseCryptStubLibDummy})
++ADD_LIBRARY(BaseCryptStubLibDummy OBJECT ${src_BaseCryptStubLibDummy})
+diff --git a/UnitTest/TestSize/IntrinsicLib/CMakeLists.txt b/UnitTest/TestSize/IntrinsicLib/CMakeLists.txt
+index 7b143c5..db310dc 100644
+--- a/UnitTest/TestSize/IntrinsicLib/CMakeLists.txt
++++ b/UnitTest/TestSize/IntrinsicLib/CMakeLists.txt
+@@ -40,4 +40,4 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
+     endif()
+ endif()
+ 
+-ADD_LIBRARY(IntrinsicLib STATIC ${src_IntrinsicLib})
++ADD_LIBRARY(IntrinsicLib OBJECT ${src_IntrinsicLib})
+diff --git a/UnitTest/TestSize/MemoryAllocationLibNull/CMakeLists.txt b/UnitTest/TestSize/MemoryAllocationLibNull/CMakeLists.txt
+index cd55bf9..b921d55 100644
+--- a/UnitTest/TestSize/MemoryAllocationLibNull/CMakeLists.txt
++++ b/UnitTest/TestSize/MemoryAllocationLibNull/CMakeLists.txt
+@@ -9,4 +9,4 @@ SET(src_MemoryAllocationLibNull
+     MemoryAllocationLib.c
+ )
+ 
+-ADD_LIBRARY(MemoryAllocationLibNull STATIC ${src_MemoryAllocationLibNull})
++ADD_LIBRARY(MemoryAllocationLibNull OBJECT ${src_MemoryAllocationLibNull})
+diff --git a/UnitTest/TestSize/RngLibNull/CMakeLists.txt b/UnitTest/TestSize/RngLibNull/CMakeLists.txt
+index 9bb839b..1bd599c 100644
+--- a/UnitTest/TestSize/RngLibNull/CMakeLists.txt
++++ b/UnitTest/TestSize/RngLibNull/CMakeLists.txt
+@@ -9,4 +9,4 @@ SET(src_RngLibNull
+     RngLib.c
+ )
+ 
+-ADD_LIBRARY(RngLibNull STATIC ${src_RngLibNull})
++ADD_LIBRARY(RngLibNull OBJECT ${src_RngLibNull})

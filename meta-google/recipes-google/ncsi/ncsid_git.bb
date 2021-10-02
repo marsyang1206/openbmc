@@ -6,7 +6,11 @@ require ../google-misc/google-misc.inc
 
 inherit systemd
 
-SYSTEMD_SERVICE_${PN} += " \
+EXTRA_OEMESON = " \
+        -Dtests=disabled \
+        "
+
+SYSTEMD_SERVICE:${PN} += " \
   dhcp4@.service \
   dhcp6@.service \
   ncsid@.service \
@@ -22,7 +26,7 @@ DEPENDS += " \
   stdplus \
   "
 
-RDEPENDS_${PN} += " \
+RDEPENDS:${PN} += " \
   bash \
   busybox \
   iputils-arping \

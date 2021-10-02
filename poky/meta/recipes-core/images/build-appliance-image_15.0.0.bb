@@ -24,7 +24,7 @@ IMAGE_FSTYPES = "wic.vmdk wic.vhd wic.vhdx"
 
 inherit core-image setuptools3
 
-SRCREV ?= "42514ade8bdb9502f49a56752561f6c2e9f23348"
+SRCREV ?= "75f491e5e20bd0aade764ea5bd15f547fafb7684"
 SRC_URI = "git://git.yoctoproject.org/poky \
            file://Yocto_Build_Appliance.vmx \
            file://Yocto_Build_Appliance.vmxf \
@@ -34,7 +34,7 @@ SRC_URI = "git://git.yoctoproject.org/poky \
 RECIPE_NO_UPDATE_REASON = "Recipe is recursive and handled as part of the release process"
 BA_INCLUDE_SOURCES ??= "0"
 
-IMAGE_CMD_ext4_append () {
+IMAGE_CMD:ext4:append () {
 	# We don't need to reserve much space for root, 0.5% is more than enough
 	tune2fs -m 0.5 ${IMGDEPLOYDIR}/${IMAGE_NAME}.rootfs.ext4
 }

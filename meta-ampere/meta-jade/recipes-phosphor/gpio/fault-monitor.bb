@@ -6,7 +6,7 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/Apache-2.0;md5
 inherit obmc-phosphor-systemd
 
 DEPENDS += "virtual/obmc-gpio-monitor"
-RDEPENDS_${PN} += "virtual/obmc-gpio-monitor"
+RDEPENDS:${PN} += "virtual/obmc-gpio-monitor"
 
 S = "${WORKDIR}"
 SRC_URI += "file://toggle_fault_led.sh"
@@ -28,6 +28,6 @@ INSTFMT = "phosphor-gpio-monitor@{0}.service"
 TGT = "multi-user.target"
 FMT = "../${TMPL}:${TGT}.requires/${INSTFMT}"
 
-SYSTEMD_SERVICE_${PN} += "ampere_fault_led.service"
+SYSTEMD_SERVICE:${PN} += "ampere_fault_led.service"
 SYSTEMD_LINK_${PN} += "${@compose_list(d, 'FMT', 'OBMC_FAULT_MONITOR_INSTANCES')}"
 

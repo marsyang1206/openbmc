@@ -123,8 +123,6 @@ SSTATE_HASHEQUIV_REPORT_TASKDATA[doc] = "Report additional useful data to the \
 python () {
     if bb.data.inherits_class('native', d):
         d.setVar('SSTATE_PKGARCH', d.getVar('BUILD_ARCH', False))
-        if d.getVar("PN") == "pseudo-native":
-            d.appendVar('SSTATE_PKGARCH', '_${ORIGNATIVELSBSTRING}')
     elif bb.data.inherits_class('crosssdk', d):
         d.setVar('SSTATE_PKGARCH', d.expand("${BUILD_ARCH}_${SDK_ARCH}_${SDK_OS}"))
     elif bb.data.inherits_class('cross', d):
@@ -319,6 +317,8 @@ def sstate_install(ss, d):
     if os.path.exists(i):
         with open(i, "r") as f:
             manifests = f.readlines()
+    # We append new entries, we don't remove older entries which may have the same
+    # manifest name but different versions from stamp/workdir. See below.
     if filedata not in manifests:
         with open(i, "a+") as f:
             f.write(filedata)
@@ -401,7 +401,7 @@ def sstate_installpkgdir(ss, d):
 
     for state in ss['dirs']:
         prepdir(state[1])
-        os.rename(sstateinst + state[0], state[1])
+        bb.utils.rename(sstateinst + state[0], state[1])
     sstate_install(ss, d)
 
     for plain in ss['plaindirs']:
@@ -413,7 +413,7 @@ def sstate_installpkgdir(ss, d):
         dest = plain
         bb.utils.mkdirhier(src)
         prepdir(dest)
-        os.rename(src, dest)
+        bb.utils.rename(src, dest)
 
     return True
 
@@ -481,7 +481,7 @@ def sstate_clean_cachefiles(d):
         ss = sstate_state_fromvars(ld, task)
         sstate_clean_cachefile(ss, ld)
 
-def sstate_clean_manifest(manifest, d, prefix=None):
+def sstate_clean_manifest(manifest, d, canrace=False, prefix=None):
     import oe.path
 
     mfile = open(manifest)
@@ -499,7 +499,9 @@ def sstate_clean_manifest(manifest, d, prefix=None):
             if entry.endswith("/"):
                 if os.path.islink(entry[:-1]):
                     os.remove(entry[:-1])
-                elif os.path.exists(entry) and len(os.listdir(entry)) == 0:
+                elif os.path.exists(entry) and len(os.listdir(entry)) == 0 and not canrace:
+                    # Removing directories whilst builds are in progress exposes a race. Only
+                    # do it in contexts where it is safe to do so.
                     os.rmdir(entry[:-1])
             else:
                 os.remove(entry)
@@ -537,7 +539,7 @@ def sstate_clean(ss, d):
         for lock in ss['lockfiles']:
             locks.append(bb.utils.lockfile(lock))
 
-        sstate_clean_manifest(manifest, d)
+        sstate_clean_manifest(manifest, d, canrace=True)
 
         for lock in locks:
             bb.utils.unlockfile(lock)
@@ -664,7 +666,7 @@ def sstate_package(ss, d):
                     continue
                 bb.error("sstate found an absolute path symlink %s pointing at %s. Please replace this with a relative link." % (srcpath, link))
         bb.debug(2, "Preparing tree %s for packaging at %s" % (state[1], sstatebuild + state[0]))
-        os.rename(state[1], sstatebuild + state[0])
+        bb.utils.rename(state[1], sstatebuild + state[0])
 
     workdir = d.getVar('WORKDIR')
     sharedworkdir = os.path.join(d.getVar('TMPDIR'), "work-shared")
@@ -674,7 +676,7 @@ def sstate_package(ss, d):
             pdir = plain.replace(sharedworkdir, sstatebuild)
         bb.utils.mkdirhier(plain)
         bb.utils.mkdirhier(pdir)
-        os.rename(plain, pdir)
+        bb.utils.rename(plain, pdir)
 
     d.setVar('SSTATE_BUILDDIR', sstatebuild)
     d.setVar('SSTATE_INSTDIR', sstatebuild)
@@ -701,8 +703,15 @@ def sstate_package(ss, d):
             os.utime(siginfo, None)
         except PermissionError:
             pass
+        except OSError as e:
+            # Handle read-only file systems gracefully
+            import errno
+            if e.errno != errno.EROFS:
+                raise e
 
     return
+
+sstate_package[vardepsexclude] += "SSTATE_SIG_KEY"
 
 def pstaging_fetch(sstatefetch, d):
     import bb.fetch2
@@ -1010,6 +1019,7 @@ def sstate_checkhashes(sq_data, d, siginfo=False, currentcount=0, summary=True, 
         bb.parse.siggen.checkhashes(sq_data, missed, found, d)
 
     return found
+setscene_depvalid[vardepsexclude] = "SSTATE_EXCLUDEDEPS_SYSROOT"
 
 BB_SETSCENE_DEPVALID = "setscene_depvalid"
 
@@ -1141,6 +1151,11 @@ python sstate_eventhandler() {
                 os.utime(siginfo, None)
             except PermissionError:
                 pass
+            except OSError as e:
+                # Handle read-only file systems gracefully
+                import errno
+                if e.errno != errno.EROFS:
+                    raise e
 
 }
 
@@ -1183,11 +1198,21 @@ python sstate_eventhandler_reachablestamps() {
         i = d.expand("${SSTATE_MANIFESTS}/index-" + a)
         if not os.path.exists(i):
             continue
+        manseen = set()
+        ignore = []
         with open(i, "r") as f:
             lines = f.readlines()
-            for l in lines:
+            for l in reversed(lines):
                 try:
                     (stamp, manifest, workdir) = l.split()
+                    # The index may have multiple entries for the same manifest as the code above only appends
+                    # new entries and there may be an entry with matching manifest but differing version in stamp/workdir.
+                    # The last entry in the list is the valid one, any earlier entries with matching manifests
+                    # should be ignored.
+                    if manifest in manseen:
+                        ignore.append(l)
+                        continue
+                    manseen.add(manifest)
                     if stamp not in stamps and stamp not in preservestamps and stamp in machineindex:
                         toremove.append(l)
                         if stamp not in seen:
@@ -1218,6 +1243,8 @@ python sstate_eventhandler_reachablestamps() {
 
         with open(i, "w") as f:
             for l in lines:
+                if l in ignore:
+                    continue
                 f.write(l)
     machineindex |= set(stamps)
     with open(mi, "w") as f:

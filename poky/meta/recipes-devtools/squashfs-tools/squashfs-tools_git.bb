@@ -32,12 +32,14 @@ do_compile() {
 }
 
 do_install() {
+	install -d "${D}${includedir}"
 	oe_runmake install INSTALL_DIR=${D}${sbindir}
+	install -m 0644 "${S}"/squashfs_fs.h "${D}${includedir}"
 }
 
-ARM_INSTRUCTION_SET_armv4 = "arm"
-ARM_INSTRUCTION_SET_armv5 = "arm"
-ARM_INSTRUCTION_SET_armv6 = "arm"
+ARM_INSTRUCTION_SET:armv4 = "arm"
+ARM_INSTRUCTION_SET:armv5 = "arm"
+ARM_INSTRUCTION_SET:armv6 = "arm"
 
 BBCLASSEXTEND = "native nativesdk"
 

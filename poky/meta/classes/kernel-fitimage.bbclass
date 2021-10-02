@@ -60,6 +60,14 @@ FIT_DESC ?= "Kernel fitImage for ${DISTRO_NAME}/${PV}/${MACHINE}"
 # Sign individual images as well
 FIT_SIGN_INDIVIDUAL ?= "0"
 
+# Keys used to sign individually image nodes.
+# The keys to sign image nodes must be different from those used to sign
+# configuration nodes, otherwise the "required" property, from
+# UBOOT_DTB_BINARY, will be set to "conf", because "conf" prevails on "image".
+# Then the images signature checking will not be mandatory and no error will be
+# raised in case of failure.
+# UBOOT_SIGN_IMG_KEYNAME = "dev2" # keys name in keydir (eg. "dev2.crt", "dev2.key")
+
 #
 # Emit the fitImage ITS header
 #
@@ -121,7 +129,7 @@ fitimage_emit_section_kernel() {
 
 	kernel_csum="${FIT_HASH_ALG}"
 	kernel_sign_algo="${FIT_SIGN_ALG}"
-	kernel_sign_keyname="${UBOOT_SIGN_KEYNAME}"
+	kernel_sign_keyname="${UBOOT_SIGN_IMG_KEYNAME}"
 
 	ENTRYPOINT="${UBOOT_ENTRYPOINT}"
 	if [ -n "${UBOOT_ENTRYSYMBOL}" ]; then
@@ -167,7 +175,7 @@ fitimage_emit_section_dtb() {
 
 	dtb_csum="${FIT_HASH_ALG}"
 	dtb_sign_algo="${FIT_SIGN_ALG}"
-	dtb_sign_keyname="${UBOOT_SIGN_KEYNAME}"
+	dtb_sign_keyname="${UBOOT_SIGN_IMG_KEYNAME}"
 
 	dtb_loadline=""
 	dtb_ext=${DTB##*.}
@@ -214,16 +222,16 @@ fitimage_emit_section_boot_script() {
 
         bootscr_csum="${FIT_HASH_ALG}"
 	bootscr_sign_algo="${FIT_SIGN_ALG}"
-	bootscr_sign_keyname="${UBOOT_SIGN_KEYNAME}"
+	bootscr_sign_keyname="${UBOOT_SIGN_IMG_KEYNAME}"
 
         cat << EOF >> ${1}
-                bootscr@${2} {
+                bootscr-${2} {
                         description = "U-boot script";
                         data = /incbin/("${3}");
                         type = "script";
                         arch = "${UBOOT_ARCH}";
                         compression = "none";
-                        hash@1 {
+                        hash-1 {
                                 algo = "${bootscr_csum}";
                         };
                 };
@@ -232,7 +240,7 @@ EOF
 	if [ "${UBOOT_SIGN_ENABLE}" = "1" -a "${FIT_SIGN_INDIVIDUAL}" = "1" -a -n "${bootscr_sign_keyname}" ] ; then
 		sed -i '$ d' ${1}
 		cat << EOF >> ${1}
-                        signature@1 {
+                        signature-1 {
                                 algo = "${bootscr_csum},${bootscr_sign_algo}";
                                 key-name-hint = "${bootscr_sign_keyname}";
                         };
@@ -278,7 +286,7 @@ fitimage_emit_section_ramdisk() {
 
 	ramdisk_csum="${FIT_HASH_ALG}"
 	ramdisk_sign_algo="${FIT_SIGN_ALG}"
-	ramdisk_sign_keyname="${UBOOT_SIGN_KEYNAME}"
+	ramdisk_sign_keyname="${UBOOT_SIGN_IMG_KEYNAME}"
 	ramdisk_loadline=""
 	ramdisk_entryline=""
 
@@ -331,7 +339,7 @@ fitimage_emit_section_config() {
 
 	conf_csum="${FIT_HASH_ALG}"
 	conf_sign_algo="${FIT_SIGN_ALG}"
-	if [ -n "${UBOOT_SIGN_ENABLE}" ] ; then
+	if [ "${UBOOT_SIGN_ENABLE}" = "1" ] ; then
 		conf_sign_keyname="${UBOOT_SIGN_KEYNAME}"
 	fi
 
@@ -383,7 +391,7 @@ fitimage_emit_section_config() {
 	if [ -n "${bootscr_id}" ]; then
 		conf_desc="${conf_desc}${sep}u-boot script"
 		sep=", "
-		bootscr_line="bootscr = \"bootscr@${bootscr_id}\";"
+		bootscr_line="bootscr = \"bootscr-${bootscr_id}\";"
 	fi
 
 	if [ -n "${config_id}" ]; then
@@ -474,6 +482,10 @@ fitimage_assemble() {
 	setupcount=""
 	bootscr_id=""
 	rm -f ${1} arch/${ARCH}/boot/${2}
+
+	if [ ! -z "${UBOOT_SIGN_IMG_KEYNAME}" -a "${UBOOT_SIGN_KEYNAME}" = "${UBOOT_SIGN_IMG_KEYNAME}" ]; then
+		bbfatal "Keys used to sign images and configuration nodes must be different."
+	fi
 
 	fitimage_emit_fit_header ${1}
 
@@ -667,10 +679,55 @@ do_assemble_fitimage_initramfs() {
 
 addtask assemble_fitimage_initramfs before do_deploy after do_bundle_initramfs
 
-addtask generate_rsa_keys before do_assemble_fitimage after do_compile
+do_kernel_generate_rsa_keys() {
+	if [ "${UBOOT_SIGN_ENABLE}" = "0" ] && [ "${FIT_GENERATE_KEYS}" = "1" ]; then
+		bbwarn "FIT_GENERATE_KEYS is set to 1 even though UBOOT_SIGN_ENABLE is set to 0. The keys will not be generated as they won't be used."
+	fi
+
+	if [ "${UBOOT_SIGN_ENABLE}" = "1" ] && [ "${FIT_GENERATE_KEYS}" = "1" ]; then
+
+		# Generate keys to sign configuration nodes, only if they don't already exist
+		if [ ! -f "${UBOOT_SIGN_KEYDIR}/${UBOOT_SIGN_KEYNAME}".key ] || \
+			[ ! -f "${UBOOT_SIGN_KEYDIR}/${UBOOT_SIGN_KEYNAME}".crt ]; then
+
+			# make directory if it does not already exist
+			mkdir -p "${UBOOT_SIGN_KEYDIR}"
+
+			echo "Generating RSA private key for signing fitImage"
+			openssl genrsa ${FIT_KEY_GENRSA_ARGS} -out \
+				"${UBOOT_SIGN_KEYDIR}/${UBOOT_SIGN_KEYNAME}".key \
+			"${FIT_SIGN_NUMBITS}"
+
+			echo "Generating certificate for signing fitImage"
+			openssl req ${FIT_KEY_REQ_ARGS} "${FIT_KEY_SIGN_PKCS}" \
+				-key "${UBOOT_SIGN_KEYDIR}/${UBOOT_SIGN_KEYNAME}".key \
+				-out "${UBOOT_SIGN_KEYDIR}/${UBOOT_SIGN_KEYNAME}".crt
+		fi
+
+		# Generate keys to sign image nodes, only if they don't already exist
+		if [ ! -f "${UBOOT_SIGN_KEYDIR}/${UBOOT_SIGN_IMG_KEYNAME}".key ] || \
+			[ ! -f "${UBOOT_SIGN_KEYDIR}/${UBOOT_SIGN_IMG_KEYNAME}".crt ]; then
+
+			# make directory if it does not already exist
+			mkdir -p "${UBOOT_SIGN_KEYDIR}"
+
+			echo "Generating RSA private key for signing fitImage"
+			openssl genrsa ${FIT_KEY_GENRSA_ARGS} -out \
+				"${UBOOT_SIGN_KEYDIR}/${UBOOT_SIGN_IMG_KEYNAME}".key \
+			"${FIT_SIGN_NUMBITS}"
+
+			echo "Generating certificate for signing fitImage"
+			openssl req ${FIT_KEY_REQ_ARGS} "${FIT_KEY_SIGN_PKCS}" \
+				-key "${UBOOT_SIGN_KEYDIR}/${UBOOT_SIGN_IMG_KEYNAME}".key \
+				-out "${UBOOT_SIGN_KEYDIR}/${UBOOT_SIGN_IMG_KEYNAME}".crt
+		fi
+	fi
+}
+
+addtask kernel_generate_rsa_keys before do_assemble_fitimage after do_compile
 
 kernel_do_deploy[vardepsexclude] = "DATETIME"
-kernel_do_deploy_append() {
+kernel_do_deploy:append() {
 	# Update deploy directory
 	if echo ${KERNEL_IMAGETYPES} | grep -wq "fitImage"; then
 
@@ -718,13 +775,13 @@ kernel_do_deploy_append() {
 # - Removes do_assemble_fitimage. FIT generation is done through
 #   do_assemble_fitimage_initramfs. do_assemble_fitimage is not needed
 #   and should not be part of the tasks to be executed.
-# - Since do_generate_rsa_keys is inserted by default
+# - Since do_kernel_generate_rsa_keys is inserted by default
 #   between do_compile and do_assemble_fitimage, this is
-#   not suitable in case of initramfs bundles.  do_generate_rsa_keys
+#   not suitable in case of initramfs bundles.  do_kernel_generate_rsa_keys
 #   should be between do_bundle_initramfs and do_assemble_fitimage_initramfs.
 python () {
     if d.getVar('INITRAMFS_IMAGE_BUNDLE') == "1":
         bb.build.deltask('do_assemble_fitimage', d)
-        bb.build.deltask('generate_rsa_keys', d)
-        bb.build.addtask('generate_rsa_keys', 'do_assemble_fitimage_initramfs', 'do_bundle_initramfs', d)
+        bb.build.deltask('kernel_generate_rsa_keys', d)
+        bb.build.addtask('kernel_generate_rsa_keys', 'do_assemble_fitimage_initramfs', 'do_bundle_initramfs', d)
 }

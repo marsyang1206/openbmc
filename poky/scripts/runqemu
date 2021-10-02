@@ -18,6 +18,7 @@ import shutil
 import glob
 import configparser
 import signal
+import time
 
 class RunQemuError(Exception):
     """Custom exception to raise on known errors."""
@@ -145,7 +146,6 @@ class BaseConfig(object):
         self.qemu_opt = ''
         self.qemu_opt_script = ''
         self.qemuparams = ''
-        self.clean_nfs_dir = False
         self.nfs_server = ''
         self.rootfs = ''
         # File name(s) of a OVMF firmware file or variable store,
@@ -210,6 +210,8 @@ class BaseConfig(object):
         self.qemupid = None
         # avoid cleanup twice
         self.cleaned = False
+        # Files to cleanup after run
+        self.cleanup_files = []
 
     def acquire_taplock(self, error=True):
         logger.debug("Acquiring lockfile %s..." % self.taplock)
@@ -231,9 +233,12 @@ class BaseConfig(object):
     def release_taplock(self):
         if self.taplock_descriptor:
             logger.debug("Releasing lockfile for tap device '%s'" % self.tap)
-            fcntl.flock(self.taplock_descriptor, fcntl.LOCK_UN)
+            # We pass the fd to the qemu process and if we unlock here, it would unlock for
+            # that too. Therefore don't unlock, just close
+            # fcntl.flock(self.taplock_descriptor, fcntl.LOCK_UN)
             self.taplock_descriptor.close()
-            os.remove(self.taplock)
+            # Removing the file is a potential race, don't do that either
+            # os.remove(self.taplock)
             self.taplock_descriptor = None
 
     def check_free_port(self, host, port, lockdir):
@@ -271,17 +276,23 @@ class BaseConfig(object):
 
     def release_portlock(self, lockfile=None):
         if lockfile != None:
-           logger.debug("Releasing lockfile '%s'" % lockfile)
-           fcntl.flock(self.portlocks[lockfile], fcntl.LOCK_UN)
-           self.portlocks[lockfile].close()
-           os.remove(lockfile)
-           del self.portlocks[lockfile]
+            logger.debug("Releasing lockfile '%s'" % lockfile)
+            # We pass the fd to the qemu process and if we unlock here, it would unlock for
+            # that too. Therefore don't unlock, just close
+            # fcntl.flock(self.portlocks[lockfile], fcntl.LOCK_UN)
+            self.portlocks[lockfile].close()
+            # Removing the file is a potential race, don't do that either
+            # os.remove(lockfile)
+            del self.portlocks[lockfile]
         elif len(self.portlocks):
             for lockfile, descriptor in self.portlocks.items():
                 logger.debug("Releasing lockfile '%s'" % lockfile)
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
+                # We pass the fd to the qemu process and if we unlock here, it would unlock for
+                # that too. Therefore don't unlock, just close
+                # fcntl.flock(descriptor, fcntl.LOCK_UN)
                 descriptor.close()
-                os.remove(lockfile)
+                # Removing the file is a potential race, don't do that either
+                # os.remove(lockfile)
             self.portlocks = {}
 
     def get(self, key):
@@ -539,13 +550,13 @@ class BaseConfig(object):
     def check_kvm(self):
         """Check kvm and kvm-host"""
         if not (self.kvm_enabled or self.vhost_enabled):
-            self.qemu_opt_script += ' %s %s' % (self.get('QB_MACHINE'), self.get('QB_CPU'))
+            self.qemu_opt_script += ' %s %s %s' % (self.get('QB_MACHINE'), self.get('QB_CPU'), self.get('QB_SMP'))
             return
 
         if not self.get('QB_CPU_KVM'):
             raise RunQemuError("QB_CPU_KVM is NULL, this board doesn't support kvm")
 
-        self.qemu_opt_script += ' %s %s' % (self.get('QB_MACHINE'), self.get('QB_CPU_KVM'))
+        self.qemu_opt_script += ' %s %s %s' % (self.get('QB_MACHINE'), self.get('QB_CPU_KVM'), self.get('QB_SMP'))
         yocto_kvm_wiki = "https://wiki.yoctoproject.org/wiki/How_to_enable_KVM_for_Poky_qemu"
         yocto_paravirt_kvm_wiki = "https://wiki.yoctoproject.org/wiki/Running_an_x86_Yocto_Linux_image_under_QEMU_KVM"
         dev_kvm = '/dev/kvm'
@@ -765,7 +776,7 @@ class BaseConfig(object):
                 raise RunQemuError('BIOS not found: %s' % bios_match_name)
 
         if not os.path.exists(self.bios):
-            raise RunQemuError("KERNEL %s not found" % self.bios)
+            raise RunQemuError("BIOS %s not found" % self.bios)
 
 
     def check_mem(self):
@@ -1020,8 +1031,9 @@ class BaseConfig(object):
                 logger.info('Running %s...' % str(cmd))
                 if subprocess.call(cmd) != 0:
                     raise RunQemuError('Failed to run %s' % cmd)
-                self.clean_nfs_dir = True
                 self.rootfs = dest
+                self.cleanup_files.append(self.rootfs)
+                self.cleanup_files.append('%s.pseudo_state' % self.rootfs)
 
         # Start the userspace NFS server
         cmd = ('runqemu-export-rootfs', 'start', self.rootfs)
@@ -1199,11 +1211,14 @@ class BaseConfig(object):
         tmpfsdir = os.environ.get("RUNQEMU_TMPFS_DIR", None)
         if self.snapshot and tmpfsdir:
             newrootfs = os.path.join(tmpfsdir, os.path.basename(self.rootfs)) + "." + str(os.getpid())
+            logger.info("Copying rootfs to %s" % newrootfs)
+            copy_start = time.time()
             shutil.copyfile(self.rootfs, newrootfs)
-            #print("Copying rootfs to tmpfs: %s" % newrootfs)
+            logger.info("Copy done in %s seconds" % (time.time() - copy_start))
             self.rootfs = newrootfs
             # Don't need a second copy now!
             self.snapshot = False
+            self.cleanup_files.append(newrootfs)
 
         qb_rootfs_opt = self.get('QB_ROOTFS_OPT')
         if qb_rootfs_opt:
@@ -1428,12 +1443,14 @@ class BaseConfig(object):
             kernel_opts = "-kernel %s -append '%s %s %s %s'" % (self.kernel, self.kernel_cmdline,
                                                                 self.kernel_cmdline_script, self.get('QB_KERNEL_CMDLINE_APPEND'),
                                                                 self.bootparams)
-            if self.bios:
-                kernel_opts += " -bios %s" % self.bios
             if self.dtb:
                 kernel_opts += " -dtb %s" % self.dtb
         else:
             kernel_opts = ""
+
+        if self.bios:
+            self.qemu_opt += " -bios %s" % self.bios
+
         cmd = "%s %s" % (self.qemu_opt, kernel_opts)
         cmds = shlex.split(cmd)
         logger.info('Running %s\n' % cmd)
@@ -1476,10 +1493,13 @@ class BaseConfig(object):
         if self.saved_stty:
             subprocess.check_call(("stty", self.saved_stty))
 
-        if self.clean_nfs_dir:
-            logger.info('Removing %s' % self.rootfs)
-            shutil.rmtree(self.rootfs)
-            shutil.rmtree('%s.pseudo_state' % self.rootfs)
+        if self.cleanup_files:
+            for ent in self.cleanup_files:
+                logger.info('Removing %s' % ent)
+                if os.path.isfile(ent):
+                    os.remove(ent)
+                else:
+                    shutil.rmtree(ent)
 
         self.cleaned = True
 

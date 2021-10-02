@@ -50,7 +50,7 @@ splitting out of debug symbols during packaging).
    ``do_package_write_*`` tasks to
    have different signatures for the machines with different tunings.
    Additionally, unnecessary rebuilds occur every time an image for a
-   different ``MACHINE`` is built even when the recipe never changes.
+   different :term:`MACHINE` is built even when the recipe never changes.
 
 By default, all recipes inherit the :ref:`base <ref-classes-base>` and
 :ref:`package <ref-classes-package>` classes, which enable
@@ -110,13 +110,13 @@ It's useful to have some idea of how the tasks defined by the
 -  :ref:`ref-tasks-configure` - Regenerates the
    configure script (using ``autoreconf``) and then launches it with a
    standard set of arguments used during cross-compilation. You can pass
-   additional parameters to ``configure`` through the ``EXTRA_OECONF``
+   additional parameters to ``configure`` through the :term:`EXTRA_OECONF`
    or :term:`PACKAGECONFIG_CONFARGS`
    variables.
 
 -  :ref:`ref-tasks-compile` - Runs ``make`` with
    arguments that specify the compiler and linker. You can pass
-   additional arguments through the ``EXTRA_OEMAKE`` variable.
+   additional arguments through the :term:`EXTRA_OEMAKE` variable.
 
 -  :ref:`ref-tasks-install` - Runs ``make install`` and
    passes in ``${``\ :term:`D`\ ``}`` as ``DESTDIR``.
@@ -168,8 +168,7 @@ example use for this class.
    the "subpath" parameter limits the checkout to a specific subpath
    of the tree. Here is an example where ``${BP}`` is used so that the files
    are extracted into the subdirectory expected by the default value of
-   ``S``:
-   ::
+   :term:`S`::
 
            SRC_URI = "git://example.com/downloads/somepackage.rpm;subpath=${BP}"
 
@@ -221,8 +220,7 @@ each recipe you wish to blacklist. Specify the :term:`PN`
 value as a variable flag (varflag) and provide a reason, which is
 reported, if the package is requested to be built as the value. For
 example, if you want to blacklist a recipe called "exoticware", you add
-the following to your ``local.conf`` or distribution configuration:
-::
+the following to your ``local.conf`` or distribution configuration::
 
    INHERIT += "blacklist"
    PNBLACKLIST[exoticware] = "Not supported by our organization."
@@ -258,7 +256,7 @@ Collecting build statistics is enabled by default through the
 :term:`USER_CLASSES` variable from your
 ``local.conf`` file. Consequently, you do not have to do anything to
 enable the class. However, if you want to disable the class, simply
-remove "buildstats" from the ``USER_CLASSES`` list.
+remove "buildstats" from the :term:`USER_CLASSES` list.
 
 .. _ref-classes-buildstats-summary:
 
@@ -290,21 +288,6 @@ The ``chrpath`` class is a wrapper around the "chrpath" utility, which
 is used during the build process for ``nativesdk``, ``cross``, and
 ``cross-canadian`` recipes to change ``RPATH`` records within binaries
 in order to make them relocatable.
-
-.. _ref-classes-clutter:
-
-``clutter.bbclass``
-===================
-
-The ``clutter`` class consolidates the major and minor version naming
-and other common items used by Clutter and related recipes.
-
-.. note::
-
-   Unlike some other classes related to specific libraries, recipes
-   building other software that uses Clutter do not need to inherit this
-   class unless they use the same recipe versioning scheme that the
-   Clutter and related recipes do.
 
 .. _ref-classes-cmake:
 
@@ -421,6 +404,22 @@ cross-compilation tools used for building SDKs. See the
 section in the Yocto Project Overview and Concepts Manual for more
 discussion on these cross-compilation tools.
 
+.. _ref-classes-cve-check:
+
+``cve-check.bbclass``
+=====================
+
+The ``cve-check`` class looks for known CVEs (Common Vulnerabilities
+and Exposures) while building an image. This class is meant to be
+inherited globally from a configuration file::
+
+   INHERIT += "cve-check"
+
+You can also look for vulnerabilities in specific packages by passing
+``-c cve_check`` to BitBake. You will find details in the
+":ref:`dev-manual/common-tasks:checking for vulnerabilities`"
+section in the Development Tasks Manual.
+
 .. _ref-classes-debian:
 
 ``debian.bbclass``
@@ -450,7 +449,7 @@ deployed to :term:`DEPLOYDIR`, and use ``addtask`` to
 add the task at the appropriate place, which is usually after
 :ref:`ref-tasks-compile` or
 :ref:`ref-tasks-install`. The class then takes care of
-staging the files from ``DEPLOYDIR`` to ``DEPLOY_DIR_IMAGE``.
+staging the files from :term:`DEPLOYDIR` to :term:`DEPLOY_DIR_IMAGE`.
 
 .. _ref-classes-devshell:
 
@@ -470,22 +469,20 @@ information about using ``devshell``.
 The ``devupstream`` class uses
 :term:`BBCLASSEXTEND` to add a variant of the
 recipe that fetches from an alternative URI (e.g. Git) instead of a
-tarball. Following is an example:
-::
+tarball. Following is an example::
 
    BBCLASSEXTEND = "devupstream:target"
-   SRC_URI_class-devupstream = "git://git.example.com/example"
-   SRCREV_class-devupstream = "abcd1234"
+   SRC_URI:class-devupstream = "git://git.example.com/example"
+   SRCREV:class-devupstream = "abcd1234"
 
 Adding the above statements to your recipe creates a variant that has
 :term:`DEFAULT_PREFERENCE` set to "-1".
 Consequently, you need to select the variant of the recipe to use it.
 Any development-specific adjustments can be done by using the
-``class-devupstream`` override. Here is an example:
-::
+``class-devupstream`` override. Here is an example::
 
-   DEPENDS_append_class-devupstream = " gperf-native"
-   do_configure_prepend_class-devupstream() {
+   DEPENDS:append:class-devupstream = " gperf-native"
+   do_configure:prepend:class-devupstream() {
        touch ${S}/README
    }
 
@@ -493,7 +490,7 @@ The class
 currently only supports creating a development variant of the target
 recipe, not ``native`` or ``nativesdk`` variants.
 
-The ``BBCLASSEXTEND`` syntax (i.e. ``devupstream:target``) provides
+The :term:`BBCLASSEXTEND` syntax (i.e. ``devupstream:target``) provides
 support for ``native`` and ``nativesdk`` variants. Consequently, this
 functionality can be added in a future release.
 
@@ -538,14 +535,13 @@ and to build it, respectively. When your recipe inherits the
 ``externalsrc`` class, you use the
 :term:`EXTERNALSRC` and
 :term:`EXTERNALSRC_BUILD` variables to
-ultimately define ``S`` and ``B``.
+ultimately define :term:`S` and :term:`B`.
 
 By default, this class expects the source code to support recipe builds
 that use the :term:`B` variable to point to the directory in
 which the OpenEmbedded build system places the generated objects built
-from the recipes. By default, the ``B`` directory is set to the
-following, which is separate from the source directory (``S``):
-::
+from the recipes. By default, the :term:`B` directory is set to the
+following, which is separate from the source directory (:term:`S`)::
 
    ${WORKDIR}/${BPN}/{PV}/
 
@@ -581,8 +577,7 @@ be performed using the
    useradd
    class to add user and group configuration to a specific recipe.
 
-Here is an example that uses this class in an image recipe:
-::
+Here is an example that uses this class in an image recipe::
 
    inherit extrausers
    EXTRA_USERS_PARAMS = "\
@@ -595,8 +590,7 @@ Here is an example that uses this class in an image recipe:
        "
 
 Here is an example that adds two users named "tester-jim" and "tester-sue" and assigns
-passwords:
-::
+passwords::
 
    inherit extrausers
    EXTRA_USERS_PARAMS = "\
@@ -604,8 +598,7 @@ passwords:
        useradd -P tester01 tester-sue; \
        "
 
-Finally, here is an example that sets the root password to "1876*18":
-::
+Finally, here is an example that sets the root password to "1876*18"::
 
    inherit extrausers
    EXTRA_USERS_PARAMS = "\
@@ -712,8 +705,8 @@ introspection. This functionality is only enabled if the
 .. note::
 
    This functionality is backfilled by default and, if not applicable,
-   should be disabled through ``DISTRO_FEATURES_BACKFILL_CONSIDERED`` or
-   ``MACHINE_FEATURES_BACKFILL_CONSIDERED``, respectively.
+   should be disabled through :term:`DISTRO_FEATURES_BACKFILL_CONSIDERED` or
+   :term:`MACHINE_FEATURES_BACKFILL_CONSIDERED`, respectively.
 
 .. _ref-classes-grub-efi:
 
@@ -861,23 +854,21 @@ using an empty :term:`PARALLEL_MAKE` variable.
 Inheriting the ``icecc`` class changes all sstate signatures.
 Consequently, if a development team has a dedicated build system that
 populates :term:`SSTATE_MIRRORS` and they want to
-reuse sstate from ``SSTATE_MIRRORS``, then all developers and the build
+reuse sstate from :term:`SSTATE_MIRRORS`, then all developers and the build
 system need to either inherit the ``icecc`` class or nobody should.
 
 At the distribution level, you can inherit the ``icecc`` class to be
 sure that all builders start with the same sstate signatures. After
 inheriting the class, you can then disable the feature by setting the
-:term:`ICECC_DISABLED` variable to "1" as follows:
-::
+:term:`ICECC_DISABLED` variable to "1" as follows::
 
-   INHERIT_DISTRO_append = " icecc"
+   INHERIT_DISTRO:append = " icecc"
    ICECC_DISABLED ??= "1"
 
 This practice
 makes sure everyone is using the same signatures but also requires
 individuals that do want to use Icecream to enable the feature
-individually as follows in your ``local.conf`` file:
-::
+individually as follows in your ``local.conf`` file::
 
    ICECC_DISABLED = ""
 
@@ -891,10 +882,10 @@ First, the root filesystem is created from packages using one of the
 ``rootfs*.bbclass`` files (depending on the package format used) and
 then one or more image files are created.
 
--  The ``IMAGE_FSTYPES`` variable controls the types of images to
+-  The :term:`IMAGE_FSTYPES` variable controls the types of images to
    generate.
 
--  The ``IMAGE_INSTALL`` variable controls the list of packages to
+-  The :term:`IMAGE_INSTALL` variable controls the list of packages to
    install into the image.
 
 For information on customizing images, see the
@@ -925,8 +916,7 @@ types.
 
 By default, the :ref:`image <ref-classes-image>` class automatically
 enables the ``image_types`` class. The ``image`` class uses the
-``IMGCLASSES`` variable as follows:
-::
+``IMGCLASSES`` variable as follows::
 
    IMGCLASSES = "rootfs_${IMAGE_PKGTYPE} image_types ${IMAGE_CLASSES}"
    IMGCLASSES += "${@['populate_sdk_base', 'populate_sdk_ext']['linux' in d.getVar("SDK_OS")]}"
@@ -942,7 +932,7 @@ The ``image_types`` class also handles conversion and compression of images.
 .. note::
 
    To build a VMware VMDK image, you need to add "wic.vmdk" to
-   ``IMAGE_FSTYPES``. This would also be similar for Virtual Box Virtual Disk
+   :term:`IMAGE_FSTYPES`. This would also be similar for Virtual Box Virtual Disk
    Image ("vdi") and QEMU Copy On Write Version 2 ("qcow2") images.
 
 .. _ref-classes-image-live:
@@ -958,21 +948,6 @@ specified by :term:`EFI_PROVIDER` if
 Normally, you do not use this class directly. Instead, you add "live" to
 :term:`IMAGE_FSTYPES`.
 
-.. _ref-classes-image-mklibs:
-
-``image-mklibs.bbclass``
-========================
-
-The ``image-mklibs`` class enables the use of the ``mklibs`` utility
-during the :ref:`ref-tasks-rootfs` task, which optimizes
-the size of libraries contained in the image.
-
-By default, the class is enabled in the ``local.conf.template`` using
-the :term:`USER_CLASSES` variable as follows:
-::
-
-   USER_CLASSES ?= "buildstats image-mklibs image-prelink"
-
 .. _ref-classes-image-prelink:
 
 ``image-prelink.bbclass``
@@ -984,10 +959,9 @@ the dynamic linking of shared libraries to reduce executable startup
 time.
 
 By default, the class is enabled in the ``local.conf.template`` using
-the :term:`USER_CLASSES` variable as follows:
-::
+the :term:`USER_CLASSES` variable as follows::
 
-   USER_CLASSES ?= "buildstats image-mklibs image-prelink"
+   USER_CLASSES ?= "buildstats image-prelink"
 
 .. _ref-classes-insane:
 
@@ -1014,17 +988,16 @@ configuration). However, to skip one or more checks in recipes, you
 should use :term:`INSANE_SKIP`. For example, to skip
 the check for symbolic link ``.so`` files in the main package of a
 recipe, add the following to the recipe. You need to realize that the
-package name override, in this example ``${PN}``, must be used:
-::
+package name override, in this example ``${PN}``, must be used::
 
-   INSANE_SKIP_${PN} += "dev-so"
+   INSANE_SKIP:${PN} += "dev-so"
 
 Please keep in mind that the QA checks
-exist in order to detect real or potential problems in the packaged
+are meant to detect real or potential problems in the packaged
 output. So exercise caution when disabling these checks.
 
-The following list shows the tests you can list with the ``WARN_QA`` and
-``ERROR_QA`` variables:
+Here are the tests you can list with the :term:`WARN_QA` and
+:term:`ERROR_QA` variables:
 
 -  ``already-stripped:`` Checks that produced binaries have not
    already been stripped prior to the build system extracting debug
@@ -1059,7 +1032,7 @@ The following list shows the tests you can list with the ``WARN_QA`` and
    adds a dependency on the ``initscripts-functions`` package to
    packages that install an initscript that refers to
    ``/etc/init.d/functions``. The recipe should really have an explicit
-   ``RDEPENDS`` for the package in question on ``initscripts-functions``
+   :term:`RDEPENDS` for the package in question on ``initscripts-functions``
    so that the OpenEmbedded build system is able to ensure that the
    ``initscripts`` recipe is actually built and thus the
    ``initscripts-functions`` package is made available.
@@ -1099,8 +1072,8 @@ The following list shows the tests you can list with the ``WARN_QA`` and
 -  ``dev-so:`` Checks that the ``.so`` symbolic links are in the
    ``-dev`` package and not in any of the other packages. In general,
    these symlinks are only useful for development purposes. Thus, the
-   ``-dev`` package is the correct location for them. Some very rare
-   cases do exist for dynamically loaded modules where these symlinks
+   ``-dev`` package is the correct location for them. In very rare
+   cases, such as dynamically loaded modules, these symlinks
    are needed instead in the main package.
 
 -  ``file-rdeps:`` Checks that file-level dependencies identified by
@@ -1152,18 +1125,17 @@ The following list shows the tests you can list with the ``WARN_QA`` and
 
 -  ``invalid-packageconfig:`` Checks that no undefined features are
    being added to :term:`PACKAGECONFIG`. For
-   example, any name "foo" for which the following form does not exist:
-   ::
+   example, any name "foo" for which the following form does not exist::
 
       PACKAGECONFIG[foo] = "..."
 
--  ``la:`` Checks ``.la`` files for any ``TMPDIR`` paths. Any ``.la``
+-  ``la:`` Checks ``.la`` files for any :term:`TMPDIR` paths. Any ``.la``
    file containing these paths is incorrect since ``libtool`` adds the
    correct sysroot prefix when using the files automatically itself.
 
 -  ``ldflags:`` Ensures that the binaries were linked with the
    :term:`LDFLAGS` options provided by the build system.
-   If this test fails, check that the ``LDFLAGS`` variable is being
+   If this test fails, check that the :term:`LDFLAGS` variable is being
    passed to the linker command.
 
 -  ``libdir:`` Checks for libraries being installed into incorrect
@@ -1203,7 +1175,7 @@ The following list shows the tests you can list with the ``WARN_QA`` and
    invalid characters (i.e. characters other than 0-9, a-z, ., +, and
    -).
 
--  ``pkgv-undefined:`` Checks to see if the ``PKGV`` variable is
+-  ``pkgv-undefined:`` Checks to see if the :term:`PKGV` variable is
    undefined during :ref:`ref-tasks-package`.
 
 -  ``pkgvarcheck:`` Checks through the variables
@@ -1223,14 +1195,14 @@ The following list shows the tests you can list with the ``WARN_QA`` and
 -  ``pn-overrides:`` Checks that a recipe does not have a name
    (:term:`PN`) value that appears in
    :term:`OVERRIDES`. If a recipe is named such that
-   its ``PN`` value matches something already in ``OVERRIDES`` (e.g.
-   ``PN`` happens to be the same as :term:`MACHINE` or
+   its :term:`PN` value matches something already in :term:`OVERRIDES` (e.g.
+   :term:`PN` happens to be the same as :term:`MACHINE` or
    :term:`DISTRO`), it can have unexpected consequences.
-   For example, assignments such as ``FILES_${PN} = "xyz"`` effectively
+   For example, assignments such as ``FILES:${PN} = "xyz"`` effectively
    turn into ``FILES = "xyz"``.
 
 -  ``rpaths:`` Checks for rpaths in the binaries that contain build
-   system paths such as ``TMPDIR``. If this test fails, bad ``-rpath``
+   system paths such as :term:`TMPDIR`. If this test fails, bad ``-rpath``
    options are being passed to the linker commands and your binaries
    have potential security issues.
 
@@ -1252,7 +1224,7 @@ The following list shows the tests you can list with the ``WARN_QA`` and
 
 -  ``unlisted-pkg-lics:`` Checks that all declared licenses applying
    for a package are also declared on the recipe level (i.e. any license
-   in ``LICENSE_*`` should appear in :term:`LICENSE`).
+   in ``LICENSE:*`` should appear in :term:`LICENSE`).
 
 -  ``useless-rpaths:`` Checks for dynamic library load paths (rpaths)
    in the binaries that by default on a standard system are searched by
@@ -1275,8 +1247,8 @@ The following list shows the tests you can list with the ``WARN_QA`` and
 
    .. note::
 
-      If you are not using runtime package management on your target
-      system, then you do not need to worry about this situation.
+      This is only relevant when you are using runtime package management
+      on your target system.
 
 -  ``xorg-driver-abi:`` Checks that all packages containing Xorg
    drivers have ABI dependencies. The ``xserver-xorg`` recipe provides
@@ -1303,7 +1275,7 @@ themselves.
 
 The ``kernel`` class handles building Linux kernels. The class contains
 code to build all kernel trees. All needed headers are staged into the
-``STAGING_KERNEL_DIR`` directory to allow out-of-tree module builds
+:term:`STAGING_KERNEL_DIR` directory to allow out-of-tree module builds
 using the :ref:`module <ref-classes-module>` class.
 
 This means that each built kernel module is packaged separately and
@@ -1636,8 +1608,7 @@ a couple different ways:
    .. note::
 
       When creating a recipe this way, the recipe name must follow this
-      naming convention:
-      ::
+      naming convention::
 
          myrecipe-native.bb
 
@@ -1645,13 +1616,12 @@ a couple different ways:
       Not using this naming convention can lead to subtle problems
       caused by existing code that depends on that naming convention.
 
--  Create or modify a target recipe that contains the following:
-   ::
+-  Create or modify a target recipe that contains the following::
 
       BBCLASSEXTEND = "native"
 
    Inside the
-   recipe, use ``_class-native`` and ``_class-target`` overrides to
+   recipe, use ``:class-native`` and ``:class-target`` overrides to
    specify any functionality specific to the respective native or target
    case.
 
@@ -1677,25 +1647,23 @@ couple different ways:
    inherit statement in the recipe after all other inherit statements so
    that the ``nativesdk`` class is inherited last.
 
--  Create a ``nativesdk`` variant of any recipe by adding the following:
-   ::
+-  Create a ``nativesdk`` variant of any recipe by adding the following::
 
        BBCLASSEXTEND = "nativesdk"
 
    Inside the
-   recipe, use ``_class-nativesdk`` and ``_class-target`` overrides to
+   recipe, use ``:class-nativesdk`` and ``:class-target`` overrides to
    specify any functionality specific to the respective SDK machine or
    target case.
 
 .. note::
 
-   When creating a recipe, you must follow this naming convention:
-   ::
+   When creating a recipe, you must follow this naming convention::
 
            nativesdk-myrecipe.bb
 
 
-   Not doing so can lead to subtle problems because code exists that
+   Not doing so can lead to subtle problems because there is code that
    depends on the naming convention.
 
 Although applied differently, the ``nativesdk`` class is used with both
@@ -1733,10 +1701,10 @@ section in the Yocto Project Development Tasks Manual.
 ``oelint.bbclass``
 ==================
 
-The ``oelint`` class is an obsolete lint checking tool that exists in
+The ``oelint`` class is an obsolete lint checking tool available in
 ``meta/classes`` in the :term:`Source Directory`.
 
-A number of classes exist that could be generally useful in OE-Core but
+There are some classes that could be generally useful in OE-Core but
 are never actually used within OE-Core itself. The ``oelint`` class is
 one such example. However, being aware of this class can reduce the
 proliferation of different versions of similar classes across multiple
@@ -1753,14 +1721,13 @@ before attempting to fetch it from the upstream specified in
 :term:`SRC_URI` within each recipe.
 
 To use this class, inherit it globally and specify
-:term:`SOURCE_MIRROR_URL`. Here is an example:
-::
+:term:`SOURCE_MIRROR_URL`. Here is an example::
 
    INHERIT += "own-mirrors"
    SOURCE_MIRROR_URL = "http://example.com/my-source-mirror"
 
 You can specify only a single URL
-in ``SOURCE_MIRROR_URL``.
+in :term:`SOURCE_MIRROR_URL`.
 
 .. _ref-classes-package:
 
@@ -1784,7 +1751,7 @@ package-specific classes:
    use this class.
 
 You can control the list of resulting package formats by using the
-``PACKAGE_CLASSES`` variable defined in your ``conf/local.conf``
+:term:`PACKAGE_CLASSES` variable defined in your ``conf/local.conf``
 configuration file, which is located in the :term:`Build Directory`.
 When defining the variable, you can
 specify one or more package types. Since images are generated from
@@ -1805,7 +1772,7 @@ the same or similar package. This comparison takes into account a
 complete build of the package with all dependencies previously built.
 The reason for this discrepancy is because the RPM package manager
 creates and processes more :term:`Metadata` than the IPK package
-manager. Consequently, you might consider setting ``PACKAGE_CLASSES`` to
+manager. Consequently, you might consider setting :term:`PACKAGE_CLASSES` to
 "package_ipk" if you are building smaller systems.
 
 Before making your package manager decision, however, you should
@@ -1887,7 +1854,7 @@ variable in the ``local.conf`` file.
 .. note::
 
    You cannot specify the ``package_tar`` class first using the
-   ``PACKAGE_CLASSES`` variable. You must use ``.deb``, ``.ipk``, or ``.rpm``
+   :term:`PACKAGE_CLASSES` variable. You must use ``.deb``, ``.ipk``, or ``.rpm``
    file formats for your image or SDK.
 
 .. _ref-classes-packagedata:
@@ -1909,7 +1876,7 @@ This class is enabled by default because it is inherited by the
 ========================
 
 The ``packagegroup`` class sets default values appropriate for package
-group recipes (e.g. ``PACKAGES``, ``PACKAGE_ARCH``, ``ALLOW_EMPTY``, and
+group recipes (e.g. :term:`PACKAGES`, :term:`PACKAGE_ARCH`, :term:`ALLOW_EMPTY`, and
 so forth). It is highly recommended that all package group recipes
 inherit this class.
 
@@ -2017,8 +1984,7 @@ established and then populates the SDK. After populating the SDK, the
 contains the cross-compiler and associated tooling, and the target,
 which contains a target root filesystem that is configured for the SDK
 usage. These two images reside in :term:`SDK_OUTPUT`,
-which consists of the following:
-::
+which consists of the following::
 
    ${SDK_OUTPUT}/${SDK_ARCH}-nativesdk-pkgs
    ${SDK_OUTPUT}/${SDKTARGETSYSROOT}/target-pkgs
@@ -2180,8 +2146,7 @@ installed by ``libtool``. Removing these files results in them being
 absent from both the sysroot and target packages.
 
 If a recipe needs the ``.la`` files to be installed, then the recipe can
-override the removal by setting ``REMOVE_LIBTOOL_LA`` to "0" as follows:
-::
+override the removal by setting ``REMOVE_LIBTOOL_LA`` to "0" as follows::
 
    REMOVE_LIBTOOL_LA = "0"
 
@@ -2230,9 +2195,8 @@ modifying and building source code out of the work directory for a
 recipe, enabling ``rm_work`` will potentially result in your changes to
 the source being lost. To exclude some recipes from having their work
 directories deleted by ``rm_work``, you can add the names of the recipe
-or recipes you are working on to the ``RM_WORK_EXCLUDE`` variable, which
-can also be set in your ``local.conf`` file. Here is an example:
-::
+or recipes you are working on to the :term:`RM_WORK_EXCLUDE` variable, which
+can also be set in your ``local.conf`` file. Here is an example::
 
    RM_WORK_EXCLUDE += "busybox glibc"
 
@@ -2346,11 +2310,11 @@ results so these tests can be skipped over but still make the correct
 values available. The ``meta/site directory`` contains test results
 sorted into different categories such as architecture, endianness, and
 the ``libc`` used. Site information provides a list of files containing
-data relevant to the current build in the ``CONFIG_SITE`` variable that
+data relevant to the current build in the :term:`CONFIG_SITE` variable that
 Autotools automatically picks up.
 
-The class also provides variables like ``SITEINFO_ENDIANNESS`` and
-``SITEINFO_BITS`` that can be used elsewhere in the metadata.
+The class also provides variables like :term:`SITEINFO_ENDIANNESS` and
+:term:`SITEINFO_BITS` that can be used elsewhere in the metadata.
 
 .. _ref-classes-sstate:
 
@@ -2401,7 +2365,7 @@ stages:
    .. note::
 
       Additionally, a recipe can customize the files further by
-      declaring a processing function in the ``SYSROOT_PREPROCESS_FUNCS``
+      declaring a processing function in the :term:`SYSROOT_PREPROCESS_FUNCS`
       variable.
 
    A shared state (sstate) object is built from these files and the
@@ -2443,11 +2407,11 @@ stages:
       recommended for general use, the files do allow some issues such
       as user creation and module indexes to be addressed.
 
-   Because recipes can have other dependencies outside of ``DEPENDS``
+   Because recipes can have other dependencies outside of :term:`DEPENDS`
    (e.g. ``do_unpack[depends] += "tar-native:do_populate_sysroot"``),
    the sysroot creation function ``extend_recipe_sysroot`` is also added
    as a pre-function for those tasks whose dependencies are not through
-   ``DEPENDS`` but operate similarly.
+   :term:`DEPENDS` but operate similarly.
 
    When installing dependencies into the sysroot, the code traverses the
    dependency graph and processes dependencies in exactly the same way
@@ -2531,10 +2495,9 @@ You should set :term:`SYSTEMD_SERVICE` to the
 name of the service file. You should also use a package name override to
 indicate the package to which the value applies. If the value applies to
 the recipe's main package, use ``${``\ :term:`PN`\ ``}``. Here
-is an example from the connman recipe:
-::
+is an example from the connman recipe::
 
-   SYSTEMD_SERVICE_${PN} = "connman.service"
+   SYSTEMD_SERVICE:${PN} = "connman.service"
 
 Services are set up to start on boot automatically
 unless you have set
@@ -2608,8 +2571,7 @@ The tests are commands that run on the target system over ``ssh``. Each
 test is written in Python and makes use of the ``unittest`` module.
 
 The ``testimage.bbclass`` runs tests on an image when called using the
-following:
-::
+following::
 
    $ bitbake -c testimage image
 
@@ -2628,8 +2590,7 @@ section in the Yocto Project Development Tasks Manual.
 
 This class supports running automated tests against software development
 kits (SDKs). The ``testsdk`` class runs tests on an SDK when called
-using the following:
-::
+using the following::
 
    $ bitbake -c testsdk image
 
@@ -2684,8 +2645,7 @@ the environment for installed SDKs.
 The ``typecheck`` class provides support for validating the values of
 variables set at the configuration level against their defined types.
 The OpenEmbedded build system allows you to define the type of a
-variable using the "type" varflag. Here is an example:
-::
+variable using the "type" varflag. Here is an example::
 
    IMAGE_FEATURES[type] = "list"
 
@@ -2695,14 +2655,12 @@ variable using the "type" varflag. Here is an example:
 ========================
 
 The ``uboot-config`` class provides support for U-Boot configuration for
-a machine. Specify the machine in your recipe as follows:
-::
+a machine. Specify the machine in your recipe as follows::
 
    UBOOT_CONFIG ??= <default>
    UBOOT_CONFIG[foo] = "config,images"
 
-You can also specify the machine using this method:
-::
+You can also specify the machine using this method::
 
    UBOOT_MACHINE = "config"
 
@@ -2779,8 +2737,8 @@ initialization script on behalf of the package. The OpenEmbedded build
 system takes care of details such as making sure the script is stopped
 before a package is removed and started when the package is installed.
 
-Three variables control this class: ``INITSCRIPT_PACKAGES``,
-``INITSCRIPT_NAME`` and ``INITSCRIPT_PARAMS``. See the variable links
+Three variables control this class: :term:`INITSCRIPT_PACKAGES`,
+:term:`INITSCRIPT_NAME` and :term:`INITSCRIPT_PARAMS`. See the variable links
 for details.
 
 .. _ref-classes-useradd:
@@ -2834,9 +2792,9 @@ additional information.
 .. note::
 
    You do not use the ``useradd-staticids`` class directly. You either enable
-   or disable the class by setting the ``USERADDEXTENSION`` variable. If you
+   or disable the class by setting the :term:`USERADDEXTENSION` variable. If you
    enable or disable the class in a configured system, :term:`TMPDIR` might
-   contain incorrect ``uid`` and ``gid`` values. Deleting the ``TMPDIR``
+   contain incorrect ``uid`` and ``gid`` values. Deleting the :term:`TMPDIR`
    directory will correct this condition.
 
 .. _ref-classes-utility-tasks:

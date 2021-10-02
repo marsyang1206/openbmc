@@ -14,7 +14,8 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=8e5bc8627b9494741c905d65238c66b7"
 DEPENDS = "freetype libpng jpeg zlib tiff"
 
 SRC_URI = "git://github.com/libgd/libgd.git;branch=master \
-          "
+           file://0001-replace-uint32-with-uint32_t-and-uint16-with-uint16_.patch \
+           "
 
 SRCREV = "2e40f55bfb460fc9d8cbcd290a0c9eb908d5af7e"
 
@@ -33,21 +34,21 @@ EXTRA_OECONF += " --disable-rpath \
 
 EXTRA_OEMAKE = 'LDFLAGS="${LDFLAGS}"'
 
-DEBUG_OPTIMIZATION_append = " -Wno-error=maybe-uninitialized"
+DEBUG_OPTIMIZATION:append = " -Wno-error=maybe-uninitialized"
 
-do_install_append_class-target() {
+do_install:append:class-target() {
     # cleanup buildpaths from gdlib.pc
     sed -i -e 's#${STAGING_DIR_HOST}##g' ${D}${libdir}/pkgconfig/gdlib.pc
 }
 
 PACKAGES += "${PN}-tools"
 
-FILES_${PN} = "${libdir}/lib*${SOLIBS}"
-FILES_${PN}-tools = "${bindir}/*"
+FILES:${PN} = "${libdir}/lib*${SOLIBS}"
+FILES:${PN}-tools = "${bindir}/*"
 
 PROVIDES += "${PN}-tools"
-RPROVIDES_${PN}-tools = "${PN}-tools"
-RDEPENDS_${PN}-tools = "perl perl-module-strict"
+RPROVIDES:${PN}-tools = "${PN}-tools"
+RDEPENDS:${PN}-tools = "perl perl-module-strict"
 
 CVE_PRODUCT = "libgd"
 

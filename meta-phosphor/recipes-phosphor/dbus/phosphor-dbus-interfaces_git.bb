@@ -18,7 +18,7 @@ DEPENDS += " \
         "
 
 SRC_URI = "git://github.com/openbmc/phosphor-dbus-interfaces"
-SRCREV = "32fbd5df095c9b0262a013bedae8cef51f1d35fe"
+SRCREV = "ce8e3892a6d6dbf325f75a9f5eb710445dd04d39"
 
 # Process OBMC_ORG_YAML_SUBDIRS to create Meson config options.
 # ex. xyz/openbmc_project -> -Ddata_xyz_openbmc_project=true
@@ -31,8 +31,8 @@ pdi_meson_config[vardeps] = "OBMC_ORG_YAML_SUBDIRS"
 
 # Markdown files are installed into /usr/share/phosphor-dbus-interfaces so
 # add them to the 'doc' subpackage.
-FILES_${PN}-doc += "${datadir}/${BPN}"
+FILES:${PN}-doc += "${datadir}/${BPN}"
 
-EXTRA_OEMESON_append = " \
+EXTRA_OEMESON:append = " \
         -Db_lto=true \
         ${@pdi_meson_config(d)}"

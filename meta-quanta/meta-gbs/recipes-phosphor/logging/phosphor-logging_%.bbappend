@@ -1,1 +1,1 @@
-EXTRA_OECONF_append_gbs = " ERROR_INFO_CAP=256"
+EXTRA_OEMESON:append:gbs = " -Derror_info_cap=256"

@@ -207,7 +207,7 @@ an entire Linux distribution, including the toolchain, from source.
           https://docs.yoctoproject.org
 
       For more information about OpenEmbedded see their website:
-          http://www.openembedded.org/
+          https://www.openembedded.org/
 
       ### Shell environment set up for builds. ###
 
@@ -215,11 +215,18 @@ an entire Linux distribution, including the toolchain, from source.
 
       Common targets are:
           core-image-minimal
+          core-image-full-cmdline
           core-image-sato
+          core-image-weston
           meta-toolchain
           meta-ide-support
 
       You can also run generated QEMU images with a command like 'runqemu qemux86-64'
+
+      Other commonly useful commands are:
+       - 'devtool' and 'recipetool' handle common recipe tasks
+       - 'bitbake-layers' handles common layer tasks
+       - 'oe-pkgdata-util' handles common target package tasks
 
    Among other things, the script creates the :term:`Build Directory`, which is
    ``build`` in this case and is located in the :term:`Source Directory`.  After
@@ -238,7 +245,7 @@ an entire Linux distribution, including the toolchain, from source.
 
       You can significantly speed up your build and guard against fetcher
       failures by using mirrors. To use mirrors, add these lines to your
-      local.conf file in the Build directory: ::
+      local.conf file in the Build directory::
 
          SSTATE_MIRRORS = "\
          file://.* http://sstate.yoctoproject.org/dev/PATH;downloadfilename=PATH \n \
@@ -260,8 +267,9 @@ an entire Linux distribution, including the toolchain, from source.
 
    For information on using the ``bitbake`` command, see the
    :ref:`overview-manual/concepts:bitbake` section in the Yocto Project Overview and
-   Concepts Manual, or see the ":ref:`BitBake Command
-   <bitbake:bitbake-user-manual/bitbake-user-manual-intro:the bitbake command>`" section in the BitBake User Manual.
+   Concepts Manual, or see
+   :ref:`bitbake:bitbake-user-manual/bitbake-user-manual-intro:the bitbake command`
+   in the BitBake User Manual.
 
 #. **Simulate Your Image Using QEMU:** Once this particular image is
    built, you can start QEMU, which is a Quick EMUlator that ships with
@@ -297,7 +305,7 @@ modular development and makes it easier to reuse the layer metadata.
 
 Follow these steps to add a hardware layer:
 
-#. **Find a Layer:** Lots of hardware layers exist. The Yocto Project
+#. **Find a Layer:** Many hardware layers are available. The Yocto Project
    :yocto_git:`Source Repositories <>` has many hardware layers.
    This example adds the
    `meta-altera <https://github.com/kraj/meta-altera>`__ hardware layer.
@@ -318,8 +326,8 @@ Follow these steps to add a hardware layer:
       Resolving deltas: 100% (13385/13385), done.
       Checking connectivity... done.
 
-   The hardware layer now exists
-   with other layers inside the Poky reference repository on your build
+   The hardware layer is now available
+   next to other layers inside the Poky reference repository on your build
    host as ``meta-altera`` and contains all the metadata needed to
    support hardware from Altera, which is owned by Intel.
 
@@ -332,7 +340,7 @@ Follow these steps to add a hardware layer:
 #. **Change the Configuration to Build for a Specific Machine:** The
    :term:`MACHINE` variable in the
    ``local.conf`` file specifies the machine for the build. For this
-   example, set the ``MACHINE`` variable to ``cyclone5``. These
+   example, set the :term:`MACHINE` variable to ``cyclone5``. These
    configurations are used:
    https://github.com/kraj/meta-altera/blob/master/conf/machine/cyclone5.conf.
 
@@ -431,8 +439,8 @@ information including the website, wiki pages, and user manuals:
    information.
 
 -  **Yocto Project Mailing Lists:** Related mailing lists provide a forum
-   for discussion, patch submission and announcements. Several mailing
-   lists exist and are grouped according to areas of concern. See the
+   for discussion, patch submission and announcements. There are several
+   mailing lists grouped by topic. See the
    :ref:`ref-manual/resources:mailing lists`
    section in the Yocto Project Reference Manual for a complete list of
    Yocto Project mailing lists.

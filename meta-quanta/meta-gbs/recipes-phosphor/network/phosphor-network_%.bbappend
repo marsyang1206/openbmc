@@ -1,3 +1,2 @@
-EXTRA_OECONF_append_gbs = " --enable-nic-ethtool=yes"
-
-PACKAGECONFIG_remove_gbs = "uboot-env"
+PACKAGECONFIG:append:gbs = " nic-ethtool"
+PACKAGECONFIG:remove:gbs = "uboot-env"

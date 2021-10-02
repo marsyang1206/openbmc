@@ -28,27 +28,38 @@ DEPENDS += "nlohmann-json"
 
 DEPENDS += "virtual/${PN}-config-native"
 
-RDEPENDS_${PN} += "bash"
+RDEPENDS:${PN} += "bash"
 
 S = "${WORKDIR}/git"
 
-FILES_${PN}-faultmonitor += "${bindir}/phosphor-fru-fault-monitor"
+FILES:${PN}-faultmonitor += "${bindir}/phosphor-fru-fault-monitor"
 
-DBUS_SERVICE_${PN} += "xyz.openbmc_project.LED.GroupManager.service"
+DBUS_SERVICE:${PN} += "xyz.openbmc_project.LED.GroupManager.service"
 
-SYSTEMD_SERVICE_${PN} += "obmc-led-group-start@.service obmc-led-group-stop@.service"
-SYSTEMD_SERVICE_${PN}-faultmonitor += "obmc-fru-fault-monitor.service"
+SYSTEMD_SERVICE:${PN} += "obmc-led-group-start@.service obmc-led-group-stop@.service"
+SYSTEMD_SERVICE:${PN}-faultmonitor += "obmc-fru-fault-monitor.service"
 
 SYSTEMD_LINK_${PN} += "../obmc-led-group-start@.service:multi-user.target.wants/obmc-led-group-start@bmc_booted.service"
 
+CHASSIS_TARGETS = "poweron poweroff"
 STATES = "start stop"
-TMPLFMT = "obmc-led-group-{0}@.service"
-TGTFMT = "obmc-power-{0}@0.target"
-INSTFMT = "obmc-led-group-{0}@power_on.service"
+TMPLFMT = "obmc-led-group-{1}@.service"
+TGTFMT = "obmc-chassis-{0}@0.target"
+INSTFMT = "obmc-led-group-{1}@power_on.service"
 FMT = "../${TMPLFMT}:${TGTFMT}.wants/${INSTFMT}"
-SYSTEMD_LINK_${PN} += "${@compose_list(d, 'FMT', 'STATES')}"
+SYSTEMD_LINK_${PN} += "${@compose_list_zip(d, 'FMT', 'CHASSIS_TARGETS', 'STATES')}"
 
 # Install the override to set up a Conflicts relation
 SYSTEMD_OVERRIDE_${PN} += "bmc_booted.conf:obmc-led-group-start@bmc_booted.service.d/bmc_booted.conf"
 
-EXTRA_OECONF = "YAML_PATH=${STAGING_DATADIR_NATIVE}/${PN}"
+EXTRA_OEMESON += "-Dtests=disabled"
+
+do_compile:prepend() {
+    if [ -f "${LED_YAML_PATH}/led.yaml" ]; then
+        cp "${LED_YAML_PATH}/led.yaml" "${S}/led.yaml"
+    elif [ -f "${STAGING_DATADIR_NATIVE}/${PN}/led.yaml" ]; then
+        cp "${STAGING_DATADIR_NATIVE}/${PN}/led.yaml" "${S}/led.yaml"
+    elif [ -f "${WORKDIR}/led.yaml" ]; then
+        cp "${WORKDIR}/led.yaml" "${S}/led.yaml"
+    fi
+}

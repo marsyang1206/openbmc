@@ -28,8 +28,8 @@ PACKAGECONFIG ??= " \
     ${@bb.utils.filter('DISTRO_FEATURES', 'directfb vulkan', d)} \
     ${@bb.utils.contains('DISTRO_FEATURES', 'wayland', 'wayland', '', d)} \
     ${@bb.utils.contains('DISTRO_FEATURES', 'opengl', 'gl', '', d)} \
-    bz2 closedcaption curl dash dtls hls rsvg sbc smoothstreaming sndfile \
-    ttml uvch264 webp \
+    bz2 closedcaption curl dash dtls hls openssl rsvg sbc smoothstreaming \
+    sndfile ttml uvch264 webp \
 "
 
 PACKAGECONFIG[aom]             = "-Daom=enabled,-Daom=disabled,aom"
@@ -45,7 +45,11 @@ PACKAGECONFIG[dtls]            = "-Ddtls=enabled,-Ddtls=disabled,openssl"
 PACKAGECONFIG[faac]            = "-Dfaac=enabled,-Dfaac=disabled,faac"
 PACKAGECONFIG[faad]            = "-Dfaad=enabled,-Dfaad=disabled,faad2"
 PACKAGECONFIG[fluidsynth]      = "-Dfluidsynth=enabled,-Dfluidsynth=disabled,fluidsynth"
-PACKAGECONFIG[hls]             = "-Dhls=enabled -Dhls-crypto=nettle,-Dhls=disabled,nettle"
+PACKAGECONFIG[hls]             = "-Dhls=enabled,-Dhls=disabled,"
+# Pick atleast one crypto backend below when enabling hls
+PACKAGECONFIG[nettle]          = "-Dhls-crypto=nettle,,nettle"
+PACKAGECONFIG[openssl]         = "-Dhls-crypto=openssl,,openssl"
+PACKAGECONFIG[gcrypt]          = "-Dhls-crypto=libgcrypt,,libgcrypt"
 # the gl packageconfig enables OpenGL elements that haven't been ported
 # to -base yet. They depend on the gstgl library in -base, so we do
 # not add GL dependencies here, since these are taken care of in -base.
@@ -141,11 +145,10 @@ EXTRA_OEMESON += " \
 
 export OPENCV_PREFIX = "${STAGING_DIR_TARGET}${prefix}"
 
-ARM_INSTRUCTION_SET_armv4 = "arm"
-ARM_INSTRUCTION_SET_armv5 = "arm"
+ARM_INSTRUCTION_SET:armv4 = "arm"
+ARM_INSTRUCTION_SET:armv5 = "arm"
 
-FILES_${PN}-freeverb += "${datadir}/gstreamer-1.0/presets/GstFreeverb.prs"
-FILES_${PN}-opencv += "${datadir}/gst-plugins-bad/1.0/opencv*"
-FILES_${PN}-transcode += "${datadir}/gstreamer-1.0/encoding-profiles"
-FILES_${PN}-voamrwbenc += "${datadir}/gstreamer-1.0/presets/GstVoAmrwbEnc.prs"
-
+FILES:${PN}-freeverb += "${datadir}/gstreamer-1.0/presets/GstFreeverb.prs"
+FILES:${PN}-opencv += "${datadir}/gst-plugins-bad/1.0/opencv*"
+FILES:${PN}-transcode += "${datadir}/gstreamer-1.0/encoding-profiles"
+FILES:${PN}-voamrwbenc += "${datadir}/gstreamer-1.0/presets/GstVoAmrwbEnc.prs"

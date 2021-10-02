@@ -10,12 +10,11 @@ LIC_FILES_CHKSUM = "\
 
 SRC_URI = " \
         git://linuxtv.org/libcamera.git;protocol=git \
-        file://0001-uvcvideo-Use-auto-variable-to-avoid-range-loop-warni.patch \
 "
 
-SRCREV = "f490a87fd339fc7443f5d8467ba56a35c750a5f7"
+SRCREV = "193ca8c353a42334f65ddfc988a105a47bca3547"
 
-PV = "202102+git${SRCPV}"
+PV = "202105+git${SRCPV}"
 
 S = "${WORKDIR}/git"
 
@@ -27,11 +26,15 @@ PACKAGES =+ "${PN}-gst"
 PACKAGECONFIG ??= ""
 PACKAGECONFIG[gst] = "-Dgstreamer=enabled,-Dgstreamer=disabled,gstreamer1.0 gstreamer1.0-plugins-base"
 
-RDEPENDS_${PN} = "${@bb.utils.contains('DISTRO_FEATURES', 'wayland qt', 'qtwayland', '', d)}"
+RDEPENDS:${PN} = "${@bb.utils.contains('DISTRO_FEATURES', 'wayland qt', 'qtwayland', '', d)}"
 
 inherit meson pkgconfig python3native
 
-do_install_append() {
+do_configure:prepend() {
+    sed -i -e 's|py_compile=True,||' ${S}/utils/ipc/mojo/public/tools/mojom/mojom/generate/template_expander.py
+}
+
+do_install:append() {
     chrpath -d ${D}${libdir}/libcamera.so
 }
 
@@ -48,6 +51,6 @@ do_recalculate_ipa_signatures_package() {
     ${S}/src/ipa/ipa-sign-install.sh ${B}/src/ipa-priv-key.pem "${modules}"
 }
 
-FILES_${PN}-dev = "${includedir} ${libdir}/pkgconfig"
-FILES_${PN} += " ${libdir}/libcamera.so"
-FILES_${PN}-gst = "${libdir}/gstreamer-1.0/libgstlibcamera.so"
+FILES:${PN}-dev = "${includedir} ${libdir}/pkgconfig"
+FILES:${PN} += " ${libdir}/libcamera.so"
+FILES:${PN}-gst = "${libdir}/gstreamer-1.0/libgstlibcamera.so"

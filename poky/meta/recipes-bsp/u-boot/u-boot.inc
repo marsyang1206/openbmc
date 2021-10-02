@@ -5,7 +5,7 @@ PACKAGE_ARCH = "${MACHINE_ARCH}"
 
 DEPENDS += "kern-tools-native"
 
-inherit uboot-config uboot-extlinux-config uboot-sign deploy cml1 python3native
+inherit uboot-config uboot-extlinux-config uboot-sign deploy cml1 python3native kernel-arch
 
 DEPENDS += "swig-native"
 
@@ -210,17 +210,20 @@ do_install () {
     fi
 }
 
-PACKAGE_BEFORE_PN += "${PN}-env"
+PACKAGE_BEFORE_PN += "${PN}-env ${PN}-extlinux"
 
-RPROVIDES_${PN}-env += "u-boot-default-env"
-ALLOW_EMPTY_${PN}-env = "1"
-FILES_${PN}-env = " \
+RPROVIDES:${PN}-env += "u-boot-default-env"
+ALLOW_EMPTY:${PN}-env = "1"
+FILES:${PN}-env = " \
     ${@ '${sysconfdir}/${UBOOT_INITIAL_ENV}*' if d.getVar('UBOOT_INITIAL_ENV') else ''} \
     ${sysconfdir}/fw_env.config \
 "
 
-FILES_${PN} = "/boot ${datadir}"
-RDEPENDS_${PN} += "${PN}-env"
+FILES:${PN}-extlinux = "${UBOOT_EXTLINUX_INSTALL_DIR}/${UBOOT_EXTLINUX_CONF_NAME}"
+RDEPENDS:${PN} += "${@bb.utils.contains('UBOOT_EXTLINUX', '1', '${PN}-extlinux', '', d)}"
+
+FILES:${PN} = "/boot ${datadir}"
+RDEPENDS:${PN} += "${PN}-env"
 
 do_deploy () {
     if [ -n "${UBOOT_CONFIG}" ]
@@ -345,6 +348,11 @@ do_deploy () {
         install -m 644 ${UBOOT_EXTLINUX_CONFIG} ${DEPLOYDIR}/${UBOOT_EXTLINUX_SYMLINK}
         ln -sf ${UBOOT_EXTLINUX_SYMLINK} ${DEPLOYDIR}/${UBOOT_EXTLINUX_CONF_NAME}-${MACHINE}
         ln -sf ${UBOOT_EXTLINUX_SYMLINK} ${DEPLOYDIR}/${UBOOT_EXTLINUX_CONF_NAME}
+    fi
+
+    if [ -n "${UBOOT_DTB}" ]
+    then
+        install -m 644 ${B}/arch/${UBOOT_ARCH}/dts/${UBOOT_DTB_BINARY} ${DEPLOYDIR}/
     fi
 }
 

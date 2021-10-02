@@ -7,6 +7,7 @@ BUGTRACKER = "https://gitlab.freedesktop.org/gstreamer/gst-plugins-good/-/issues
 SRC_URI = "https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-${PV}.tar.xz \
            file://0001-qt-include-ext-qt-gstqtgl.h-instead-of-gst-gl-gstglf.patch \
            file://0002-rtpjitterbuffer-Fix-parsing-of-the-mediaclk-direct-f.patch \
+           file://0003-Remove-volatile-from-static-vars-to-fix-build-with-g.patch \
            "
 
 SRC_URI[sha256sum] = "b6e50e3a9bbcd56ee6ec71c33aa8332cc9c926b0c1fae995aac8b3040ebe39b0"
@@ -18,8 +19,8 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=a6f89e2100d9b6cdffcea4f398e37343 \
                     file://gst/replaygain/rganalysis.c;beginline=1;endline=23;md5=b60ebefd5b2f5a8e0cab6bfee391a5fe"
 
 DEPENDS += "gstreamer1.0-plugins-base libcap zlib"
-RPROVIDES_${PN}-pulseaudio += "${PN}-pulse"
-RPROVIDES_${PN}-soup += "${PN}-souphttpsrc"
+RPROVIDES:${PN}-pulseaudio += "${PN}-pulse"
+RPROVIDES:${PN}-soup += "${PN}-souphttpsrc"
 
 PACKAGECONFIG ??= " \
     ${GSTREAMER_ORC} \
@@ -74,4 +75,4 @@ EXTRA_OEMESON += " \
     -Dwaveform=disabled \
 "
 
-FILES_${PN}-equalizer += "${datadir}/gstreamer-1.0/presets/*.prs"
+FILES:${PN}-equalizer += "${datadir}/gstreamer-1.0/presets/*.prs"

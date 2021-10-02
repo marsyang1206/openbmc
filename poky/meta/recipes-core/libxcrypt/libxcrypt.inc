@@ -3,21 +3,21 @@ DESCRIPTION = "Forked code from glibc libary to extract only crypto part."
 HOMEPAGE = "https://github.com/besser82/libxcrypt"
 SECTION = "libs"
 LICENSE = "LGPLv2.1"
-LIC_FILES_CHKSUM = "file://LICENSING;md5=bd5d9777dfe7076c4f2928f12fed226a \
+LIC_FILES_CHKSUM = "file://LICENSING;md5=afed27a72ae2a8075978299eebaa1f5d \
                     file://COPYING.LIB;md5=4fbd65380cdd255951079008b364516c \
                     "
 
 inherit autotools pkgconfig
 
-SRC_URI = "git://github.com/besser82/libxcrypt.git;branch=${SRCBRANCH} \
-           file://0001-configure.ac-do-not-use-compute-symver-floor.patch \
-           "
-SRCREV = "94d84f92ca123d851586016c4678eb1f21c19029"
+SRC_URI = "git://github.com/besser82/libxcrypt.git;branch=${SRCBRANCH}"
+SRCREV = "5dcc36aeeb053654659e898fd3de7f365c1c4df5"
 SRCBRANCH ?= "develop"
+
+SRC_URI += "file://fix_cflags_handling.patch"
 
 PROVIDES = "virtual/crypt"
 
-FILES_${PN} = "${libdir}/libcrypt*.so.* \
+FILES:${PN} = "${libdir}/libcrypt*.so.* \
                ${libdir}/libcrypt-*.so \
                ${libdir}/libowcrypt*.so.* \
                ${libdir}/libowcrypt-*.so \
@@ -27,7 +27,7 @@ S = "${WORKDIR}/git"
 
 BUILD_CPPFLAGS = "-I${STAGING_INCDIR_NATIVE}"
 TARGET_CPPFLAGS = "-I${STAGING_DIR_TARGET}${includedir} -Wno-error"
-CPPFLAGS_append_class-nativesdk = " -Wno-error"
+CPPFLAGS:append:class-nativesdk = " -Wno-error"
 
 API = "--disable-obsolete-api"
 EXTRA_OECONF += "${API}"

@@ -1,4 +1,3 @@
-HOMEPAGE = "https://github.com/openbmc/openpower-hw-diags"
 SUMMARY = "Hardware Diagnostics for POWER Systems"
 
 DESCRIPTION = \
@@ -7,24 +6,28 @@ DESCRIPTION = \
     POWER Systems have the ability to diagnose the root cause of the failure \
     and perform any service action needed to avoid repeated system failures."
 
-PV = "0.1+git${SRCPV}"
+HOMEPAGE = "https://github.com/openbmc/openpower-hw-diags"
+
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=86d3f3a95c324c9479bd8986968f4327"
 
-inherit meson systemd
+PR = "r1"
+PV = "0.1+git${SRCPV}"
+
+SRC_URI = "git://github.com/openbmc/openpower-hw-diags"
+SRCREV = "7029e525adf8786bf374a51599a8938d6a8a3e48"
 
 S = "${WORKDIR}/git"
 
-SRC_URI = "git://github.com/openbmc/openpower-hw-diags"
-SRCREV = "2d5c63d90c14793e333c4eee6d0b8002fdf0c7ba"
+inherit meson systemd
 
-SYSTEMD_SERVICE_${PN} = "attn_handler.service"
+SYSTEMD_SERVICE:${PN} = "attn_handler.service"
 
 DEPENDS = "boost libgpiod pdbg phosphor-logging sdbusplus openpower-libhei \
-           nlohmann-json"
+           nlohmann-json valijson"
 
 # This is required so that libhei is installed with the chip data files.
-RDEPENDS_${PN} += "openpower-libhei"
+RDEPENDS:${PN} += "openpower-libhei"
 
 # Conditionally pull in PHAL APIs, if available.
 PACKAGECONFIG ??= "${@bb.utils.filter('OBMC_MACHINE_FEATURES', 'phal', d)}"

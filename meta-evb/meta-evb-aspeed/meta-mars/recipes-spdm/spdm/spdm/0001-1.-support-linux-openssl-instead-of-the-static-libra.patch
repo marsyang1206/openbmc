@@ -1,0 +1,996 @@
+From 160acb49ae616e7d56099a895affb460d421c86b Mon Sep 17 00:00:00 2001
+From: Mars <deanjai@gmail.com>
+Date: Sun, 15 Aug 2021 23:52:05 +0800
+Subject: [PATCH] 1. support linux openssl instead of the static library 2.
+ build  the common library and two executive binary files for testing
+
+---
+ CMakeLists.txt                                |  23 +-
+ Library/CMakeLists.txt                        |  61 +++++
+ OsStub/BaseCryptLibOpenssl/CMakeLists.txt     |  12 +-
+ OsStub/BaseCryptLibOpenssl/Hash/CryptSha3.c   | 242 ++++++++++--------
+ OsStub/BaseCryptLibOpenssl/Hash/CryptSm3.c    |  37 ++-
+ .../Pk/CryptPkcs7VerifyEku.c                  |   7 +-
+ OsStub/BaseCryptLibOpenssl/Pk/CryptX509.c     |  12 +-
+ .../SysCall/CrtWrapperHost.c                  |   1 -
+ OsStub/OpensslLib/Include/CrtLibSupport.h     |   1 -
+ SpdmEmu/SpdmRequesterEmu/CMakeLists.txt       |  25 +-
+ SpdmEmu/SpdmResponderEmu/CMakeLists.txt       |  30 +--
+ 11 files changed, 242 insertions(+), 209 deletions(-)
+ create mode 100644 Library/CMakeLists.txt
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 5ca40a1..cbed369 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -126,8 +126,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+         SET(CMOCKA_FLAGS "-std=gnu99 -Wpedantic -Wall -Wshadow -Wmissing-prototypes -Wcast-align -Werror=address -Wstrict-prototypes -Werror=strict-prototypes -Wwrite-strings -Werror=write-strings -Werror-implicit-function-declaration -Wpointer-arith -Werror=pointer-arith -Wdeclaration-after-statement -Werror=declaration-after-statement -Wreturn-type -Werror=return-type -Wuninitialized -Werror=uninitialized -Werror=strict-overflow -Wstrict-overflow=2 -Wno-format-zero-length -Wmissing-field-initializers -Wformat-security -Werror=format-security -fno-common -Wformat -fno-common -fstack-protector-strong")
+ 
+         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+-        SET(CMAKE_EXE_LINKER_FLAGS "-flto -Wno-error --coverage -lgcov -fprofile-arcs -ftest-coverage")
+-    
++        SET(CMAKE_EXE_LINKER_FLAGS " -flto -Wno-error --coverage -lgcov -fprofile-arcs -ftest-coverage")
+     elseif(TOOLCHAIN STREQUAL "AARCH64_GCC")
+         SET(CMAKE_C_COMPILER aarch64-linux-gnu-gcc) 
+         SET(CMAKE_C_FLAGS "-g -fshort-wchar -fno-strict-aliasing -Wall -Werror -Wno-array-bounds -ffunction-sections -fdata-sections -fno-common -Wno-address -fpie -fno-asynchronous-unwind-tables -flto -DUSING_LTO -Wno-switch -Wno-maybe-uninitialized -Wno-uninitialized  -Wno-builtin-declaration-mismatch -Wno-nonnull-compare --coverage -fprofile-arcs -ftest-coverage")
+@@ -382,7 +381,6 @@ elseif(TOOLCHAIN STREQUAL "VS2019")
+         SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LIBPATH:'%VCToolsInstallDir%lib/x86' /LIBPATH:'%UniversalCRTSdkDir%lib/%UCRTVersion%/ucrt/x86' /LIBPATH:'%WindowsSdkDir%lib/%WindowsSDKLibVersion%/um/x86'")
+     endif()
+ endif()
+-    
+ 
+ ADD_CUSTOM_TARGET(CopyTestKey)
+ 
+@@ -393,7 +391,6 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+ elseif(CMAKE_SYSTEM_NAME MATCHES "Windows")
+     STRING(REPLACE "/" "\\" SRC ${PROJECT_SOURCE_DIR}/SpdmEmu/TestKey/*)
+     STRING(REPLACE "/" "\\" DEST ${EXECUTABLE_OUTPUT_PATH})
+-    
+     ADD_CUSTOM_COMMAND(TARGET CopyTestKey
+                        PRE_BUILD
+                        COMMAND xcopy /y /s ${SRC} ${DEST})
+@@ -405,11 +402,10 @@ if(CRYPTO STREQUAL "MbedTls")
+     )
+ elseif(CRYPTO STREQUAL "Openssl")
+     SUBDIRS(OsStub/BaseCryptLibOpenssl
+-            OsStub/OpensslLib
+     )
+ endif()
+ 
+-if(TESTTYPE STREQUAL "SpdmEmu") 
++if(TESTTYPE STREQUAL "SpdmEmu")
+     SUBDIRS(Library/SpdmCommonLib
+             Library/SpdmRequesterLib
+             Library/SpdmResponderLib
+@@ -424,11 +420,11 @@ if(TESTTYPE STREQUAL "SpdmEmu")
+             OsStub/DebugLibNull
+             OsStub/MemoryAllocationLib
+             SpdmEmu/SpdmDeviceSecretLib
++            Library/
+     )
+-            
+     SUBDIRS(SpdmEmu/SpdmRequesterEmu
++            SpdmEmu/SpdmResponderEmu
+     )
+-       
+ elseif(TESTTYPE STREQUAL "UnitTest")
+     SUBDIRS(Library/SpdmCommonLib
+             Library/SpdmRequesterLib
+@@ -447,16 +443,14 @@ elseif(TESTTYPE STREQUAL "UnitTest")
+             UnitTest/TestSize/BaseCryptLibDummy
+             UnitTest/TestSize/BaseCryptStubLibDummy
+             UnitTest/TestSize/IntrinsicLib
+-            UnitTest/TestSize/MemoryAllocationLibNull            
++            UnitTest/TestSize/MemoryAllocationLibNull
+     )
+-            
+     SUBDIRS(UnitTest/TestSpdmRequester
+             UnitTest/TestSpdmResponder
+             UnitTest/TestCryptLib
+             UnitTest/TestSize/TestSizeOfSpdmRequester
+             UnitTest/TestSize/TestSizeOfSpdmResponder
+     )
+-    
+ elseif(TESTTYPE STREQUAL "UnitFuzzing")
+     SUBDIRS(Library/SpdmCommonLib
+             Library/SpdmRequesterLib
+@@ -470,14 +464,7 @@ elseif(TESTTYPE STREQUAL "UnitFuzzing")
+             UnitTest/SpdmTransportTestLib
+             SpdmEmu/SpdmDeviceSecretLib
+     )
+-    
+     SUBDIRS(UnitTest/Fuzzing/TestSpdmRequesterGetVersion
+             UnitTest/Fuzzing/TestSpdmResponderVersion
+     )
+ endif()
+-
+-   
+-
+-
+-
+-
+diff --git a/Library/CMakeLists.txt b/Library/CMakeLists.txt
+new file mode 100644
+index 0000000..b8dcbae
+--- /dev/null
++++ b/Library/CMakeLists.txt
+@@ -0,0 +1,61 @@
++cmake_minimum_required(VERSION 2.6)
++
++INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmRequesterEmu
++                    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon
++                    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmDeviceSecretLib
++                    ${PROJECT_SOURCE_DIR}/Include
++                    ${PROJECT_SOURCE_DIR}/Include/Hal
++                    ${PROJECT_SOURCE_DIR}/Include/Hal/${ARCH}
++                    ${PROJECT_SOURCE_DIR}/OsStub/Include
++)
++
++SET(src_SpdmEmu
++    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmu.c
++    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuCommand.c
++    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuKey.c
++    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuNvStorage.c
++    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuPcap.c
++    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuSupport.c
++)
++
++
++if((TOOLCHAIN STREQUAL "KLEE") OR (TOOLCHAIN STREQUAL "CBMC"))
++    ADD_EXECUTABLE(SpdmRequesterEmu
++                   ${src_SpdmRequesterTest}
++                   $<TARGET_OBJECTS:BaseMemoryLib>
++                   $<TARGET_OBJECTS:DebugLib>
++                   $<TARGET_OBJECTS:SpdmRequesterLib>
++                   $<TARGET_OBJECTS:SpdmCommonLib>
++                   $<TARGET_OBJECTS:${CRYPTO}Lib>
++                   $<TARGET_OBJECTS:RngLib>
++                   $<TARGET_OBJECTS:BaseCryptLib${CRYPTO}>
++                   $<TARGET_OBJECTS:MemoryAllocationLib>
++                   $<TARGET_OBJECTS:SpdmCryptLib>
++                   $<TARGET_OBJECTS:SpdmSecuredMessageLib>
++                   $<TARGET_OBJECTS:SpdmTransportMctpLib>
++                   $<TARGET_OBJECTS:SpdmTransportPciDoeLib>
++                   $<TARGET_OBJECTS:SpdmDeviceSecretLib>
++    )
++else()
++    ADD_LIBRARY(SpdmEmu SHARED
++                   ${src_SpdmEmu}
++                   $<TARGET_OBJECTS:BaseMemoryLib>
++                   $<TARGET_OBJECTS:DebugLib>
++                   $<TARGET_OBJECTS:SpdmRequesterLib>
++                   $<TARGET_OBJECTS:SpdmCommonLib>
++                   $<TARGET_OBJECTS:RngLib>
++                   $<TARGET_OBJECTS:BaseCryptLib${CRYPTO}>
++                   $<TARGET_OBJECTS:MemoryAllocationLib>
++                   $<TARGET_OBJECTS:SpdmCryptLib>
++                   $<TARGET_OBJECTS:SpdmSecuredMessageLib>
++                   $<TARGET_OBJECTS:SpdmTransportMctpLib>
++                   $<TARGET_OBJECTS:SpdmTransportPciDoeLib>
++                   $<TARGET_OBJECTS:SpdmDeviceSecretLib>
++    )
++endif()
++SET_TARGET_PROPERTIES ( SpdmEmu
++  PROPERTIES
++  VERSION 1.0
++  SOVERSION 1
++)
++install(TARGETS SpdmEmu DESTINATION lib)
+diff --git a/OsStub/BaseCryptLibOpenssl/CMakeLists.txt b/OsStub/BaseCryptLibOpenssl/CMakeLists.txt
+index 0c331bd..f19f17c 100644
+--- a/OsStub/BaseCryptLibOpenssl/CMakeLists.txt
++++ b/OsStub/BaseCryptLibOpenssl/CMakeLists.txt
+@@ -1,17 +1,11 @@
+ cmake_minimum_required(VERSION 2.6)
+ 
+ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/Include
+-                    ${PROJECT_SOURCE_DIR}/Include/Hal 
++                    ${PROJECT_SOURCE_DIR}/Include/Hal
+                     ${PROJECT_SOURCE_DIR}/Include/Hal/${ARCH}
+                     ${PROJECT_SOURCE_DIR}/OsStub/Include
+                     ${PROJECT_SOURCE_DIR}/OsStub/BaseCryptLibOpenssl
+                     ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/Include
+-                    ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl
+-                    ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl/include
+-                    ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl/crypto/include
+-                    ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl/crypto
+-                    ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl/crypto/evp/
+-                    ${PROJECT_SOURCE_DIR}/OsStub/OpensslLib/openssl/crypto/evp/
+ )
+ 
+ SET(src_BaseCryptLibOpenssl
+@@ -23,7 +17,7 @@ SET(src_BaseCryptLibOpenssl
+     Hash/CryptSha256.c
+     Hash/CryptSha512.c
+     Hash/CryptSha3.c
+-    Hash/CryptSm3.c
++    #Hash/CryptSm3.c
+     Hmac/CryptHmacSha256.c
+     Kdf/CryptHkdf.c
+     Mac/CryptCmacAes.c
+@@ -32,7 +26,7 @@ SET(src_BaseCryptLibOpenssl
+     Pk/CryptEc.c
+     Pk/CryptEd.c
+     Pk/CryptDh.c
+-    Pk/CryptSm2.c
++    #Pk/CryptSm2.c
+     Pk/CryptPkcs1Oaep.c
+     Pk/CryptPkcs7Sign.c
+     Pk/CryptPkcs7VerifyBase.c
+diff --git a/OsStub/BaseCryptLibOpenssl/Hash/CryptSha3.c b/OsStub/BaseCryptLibOpenssl/Hash/CryptSha3.c
+index 8d7b477..df21c35 100644
+--- a/OsStub/BaseCryptLibOpenssl/Hash/CryptSha3.c
++++ b/OsStub/BaseCryptLibOpenssl/Hash/CryptSha3.c
+@@ -8,9 +8,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
+ **/
+ 
+ #include "InternalCryptLib.h"
+-#include <crypto/evp.h>
+ #include <openssl/evp.h>
+-#include <crypto/evp/evp_local.h>
+ 
+ ///
+ /// HashAll need a buffer to store hash context
+@@ -30,13 +28,16 @@ Sha3_256GetContextSize (
+   VOID
+   )
+ {
++#if 0
+   CONST EVP_MD      *EvpMd;
+   struct evp_md_st  *EvpMdSt;
+ 
+   EvpMd = EVP_sha3_256 ();
+   EvpMdSt = (struct evp_md_st  *)EvpMd;
+ 
+-  return (UINTN)(EvpMdSt->ctx_size + sizeof (struct evp_md_ctx_st));
++  return (UINTN)(EVP_MD_meth_get_app_datasize(EvpMdSt)  + sizeof (struct evp_md_ctx_st));
++#endif
++  return 0;
+ }
+ 
+ /**
+@@ -57,19 +58,15 @@ Sha3_256Init (
+   OUT  VOID  *Sha3_256Context
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+ 
+-  EvpMd = EVP_sha3_256 ();
+-
+-  EvpMdCtx = (struct evp_md_ctx_st *)Sha3_256Context;
+-  EvpMdCtx->md_data = (UINT8*)Sha3_256Context + sizeof (struct evp_md_ctx_st);
+-  EvpMdCtx->digest = EvpMd;
+-  EvpMdCtx->engine = NULL;
+-  EvpMdSt = (struct evp_md_st  *)EvpMd;
++  //
++  // Check input parameters.
++  //
++  if (Sha3_256Context == NULL) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->init(EvpMdCtx);
++  return (BOOLEAN) EVP_DigestInit_ex((EVP_MD_CTX *) Sha3_256Context, EVP_sha3_256(), NULL);
+ }
+ 
+ /**
+@@ -94,6 +91,7 @@ Sha3_256Duplicate (
+   OUT  VOID        *NewSha3_256Context
+   )
+ {
++#if 0
+   UINTN CtxSize;
+   if (Sha3_256Context == NULL || NewSha3_256Context == NULL) {
+     return FALSE;
+@@ -101,6 +99,7 @@ Sha3_256Duplicate (
+ 
+   CtxSize = Sha3_256GetContextSize();
+   CopyMem (NewSha3_256Context, Sha3_256Context, CtxSize);
++#endif
+   return TRUE;
+ }
+ 
+@@ -130,16 +129,22 @@ Sha3_256Update (
+   IN      UINTN       DataSize
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+ 
+-  EvpMdCtx = (struct evp_md_ctx_st *)Sha3_256Context;
++  //
++  // Check input parameters.
++  //
++  if (Sha3_256Context == NULL) {
++    return FALSE;
++  }
+ 
+-  EvpMd = EVP_sha3_256 ();
+-  EvpMdSt = (struct evp_md_st *)EvpMd;
++  //
++  // Check invalid parameters, in case that only DataLength was checked in Openssl
++  //
++  if (Data == NULL && DataSize != 0) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->update(EvpMdCtx, Data, (size_t)DataSize);
++  return (BOOLEAN) EVP_DigestUpdate ((EVP_MD_CTX *) Sha3_256Context, Data, (size_t)DataSize);
+ }
+ 
+ /**
+@@ -169,16 +174,16 @@ Sha3_256Final (
+   OUT     UINT8  *HashValue
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+-
+-  EvpMdCtx = (struct evp_md_ctx_st *)Sha3_256Context;
++  UINT32 HashLen;
+ 
+-  EvpMd = EVP_sha3_256 ();
+-  EvpMdSt = (struct evp_md_st *)EvpMd;
++  //
++  // Check input parameters.
++  //
++  if ( Sha3_256Context == NULL || HashValue == NULL) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->final(EvpMdCtx, HashValue);
++  return (BOOLEAN) EVP_DigestFinal_ex ((EVP_MD_CTX *) Sha3_256Context, HashValue, &HashLen);
+ }
+ 
+ /**
+@@ -234,13 +239,16 @@ Sha3_384GetContextSize (
+   VOID
+   )
+ {
++#if 0
+   CONST EVP_MD      *EvpMd;
+   struct evp_md_st  *EvpMdSt;
+ 
+   EvpMd = EVP_sha3_384 ();
+   EvpMdSt = (struct evp_md_st  *)EvpMd;
+ 
+-  return (UINTN)(EvpMdSt->ctx_size + sizeof (struct evp_md_ctx_st));
++  return (UINTN)(EVP_MD_meth_get_app_datasize(EvpMdSt) + sizeof (struct evp_md_ctx_st));
++#endif 
++    return 0;
+ }
+ 
+ /**
+@@ -261,19 +269,14 @@ Sha3_384Init (
+   OUT  VOID  *Sha3_384Context
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+-
+-  EvpMd = EVP_sha3_384 ();
+-
+-  EvpMdCtx = (struct evp_md_ctx_st *)Sha3_384Context;
+-  EvpMdCtx->md_data = (UINT8*)Sha3_384Context + sizeof (struct evp_md_ctx_st);
+-  EvpMdCtx->digest = EvpMd;
+-  EvpMdCtx->engine = NULL;
+-  EvpMdSt = (struct evp_md_st  *)EvpMd;
++  //
++  // Check input parameters.
++  //
++  if (Sha3_384Context == NULL) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->init(EvpMdCtx);
++  return (BOOLEAN) EVP_DigestInit_ex((EVP_MD_CTX *) Sha3_384Context, EVP_sha3_384(), NULL);
+ }
+ 
+ /**
+@@ -298,6 +301,7 @@ Sha3_384Duplicate (
+   OUT  VOID        *NewSha3_384Context
+   )
+ {
++#if 0 
+   UINTN CtxSize;
+   if (Sha3_384Context == NULL || NewSha3_384Context == NULL) {
+     return FALSE;
+@@ -305,6 +309,7 @@ Sha3_384Duplicate (
+ 
+   CtxSize = Sha3_384GetContextSize();
+   CopyMem (NewSha3_384Context, Sha3_384Context, CtxSize);
++#endif
+   return TRUE;
+ }
+ 
+@@ -334,16 +339,22 @@ Sha3_384Update (
+   IN      UINTN       DataSize
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+ 
+-  EvpMdCtx = (struct evp_md_ctx_st *)Sha3_384Context;
++  //
++  // Check input parameters.
++  //
++  if (Sha3_384Context == NULL) {
++    return FALSE;
++  }
+ 
+-  EvpMd = EVP_sha3_384 ();
+-  EvpMdSt = (struct evp_md_st *)EvpMd;
++  //
++  // Check invalid parameters, in case that only DataLength was checked in Openssl
++  //
++  if (Data == NULL && DataSize != 0) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->update(EvpMdCtx, Data, (size_t)DataSize);
++  return (BOOLEAN) EVP_DigestUpdate ((EVP_MD_CTX *) Sha3_384Context, Data, (size_t)DataSize);
+ }
+ 
+ /**
+@@ -373,16 +384,16 @@ Sha3_384Final (
+   OUT     UINT8  *HashValue
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+ 
+-  EvpMdCtx = (struct evp_md_ctx_st *)Sha3_384Context;
+-
+-  EvpMd = EVP_sha3_384 ();
+-  EvpMdSt = (struct evp_md_st *)EvpMd;
++  UINT32 HashLen;
++  //
++  // Check input parameters.
++  //
++  if (Sha3_384Context == NULL || HashValue == NULL) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->final(EvpMdCtx, HashValue);
++  return (BOOLEAN) EVP_DigestFinal_ex ((EVP_MD_CTX *) Sha3_384Context, HashValue, &HashLen);
+ }
+ 
+ /**
+@@ -438,13 +449,16 @@ Sha3_512GetContextSize (
+   VOID
+   )
+ {
++#if 0
+   CONST EVP_MD      *EvpMd;
+   struct evp_md_st  *EvpMdSt;
+ 
+   EvpMd = EVP_sha3_512 ();
+   EvpMdSt = (struct evp_md_st  *)EvpMd;
+ 
+-  return (UINTN)(EvpMdSt->ctx_size + sizeof (struct evp_md_ctx_st));
++  return (UINTN)(EVP_MD_meth_get_app_datasize(EvpMdSt) + sizeof (struct evp_md_ctx_st));
++#endif
++  return 0;
+ }
+ 
+ /**
+@@ -465,19 +479,15 @@ Sha3_512Init (
+   OUT  VOID  *Sha3_512Context
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+-
+-  EvpMd = EVP_sha3_512 ();
+ 
+-  EvpMdCtx = (struct evp_md_ctx_st *)Sha3_512Context;
+-  EvpMdCtx->md_data = (UINT8*)Sha3_512Context + sizeof (struct evp_md_ctx_st);
+-  EvpMdCtx->digest = EvpMd;
+-  EvpMdCtx->engine = NULL;
+-  EvpMdSt = (struct evp_md_st  *)EvpMd;
++  //
++  // Check input parameters.
++  //
++  if (Sha3_512Context == NULL) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->init(EvpMdCtx);
++  return (BOOLEAN) EVP_DigestInit_ex((EVP_MD_CTX *) Sha3_512Context, EVP_sha3_512(), NULL);
+ }
+ 
+ /**
+@@ -502,6 +512,7 @@ Sha3_512Duplicate (
+   OUT  VOID        *NewSha3_512Context
+   )
+ {
++#if 0
+   UINTN CtxSize;
+   if (Sha3_512Context == NULL || NewSha3_512Context == NULL) {
+     return FALSE;
+@@ -509,6 +520,7 @@ Sha3_512Duplicate (
+ 
+   CtxSize = Sha3_512GetContextSize();
+   CopyMem (NewSha3_512Context, Sha3_512Context, CtxSize);
++#endif
+   return TRUE;
+ }
+ 
+@@ -538,16 +550,15 @@ Sha3_512Update (
+   IN      UINTN       DataSize
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+-
+-  EvpMdCtx = (struct evp_md_ctx_st *)Sha3_512Context;
+ 
+-  EvpMd = EVP_sha3_512 ();
+-  EvpMdSt = (struct evp_md_st *)EvpMd;
++  //
++  // Check invalid parameters, in case that only DataLength was checked in Openssl
++  //
++  if (Data == NULL && DataSize != 0) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->update(EvpMdCtx, Data, (size_t)DataSize);
++  return (BOOLEAN) EVP_DigestUpdate ((EVP_MD_CTX *) Sha3_512Context, Data, (size_t)DataSize);
+ }
+ 
+ /**
+@@ -577,16 +588,16 @@ Sha3_512Final (
+   OUT     UINT8  *HashValue
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+-
+-  EvpMdCtx = (struct evp_md_ctx_st *)Sha3_512Context;
++  UINT32 HashLen;
+ 
+-  EvpMd = EVP_sha3_512 ();
+-  EvpMdSt = (struct evp_md_st *)EvpMd;
++  //
++  // Check input parameters.
++  //
++  if ( Sha3_512Context == NULL || HashValue == NULL) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->final(EvpMdCtx, HashValue);
++  return (BOOLEAN) EVP_DigestFinal_ex ((EVP_MD_CTX *) Sha3_512Context, HashValue, &HashLen);
+ }
+ 
+ /**
+@@ -642,13 +653,16 @@ Shake256GetContextSize (
+   VOID
+   )
+ {
++#if 0 
+   CONST EVP_MD      *EvpMd;
+   struct evp_md_st  *EvpMdSt;
+ 
+   EvpMd = EVP_shake256 ();
+   EvpMdSt = (struct evp_md_st  *)EvpMd;
+ 
+-  return (UINTN)(EvpMdSt->ctx_size + sizeof (struct evp_md_ctx_st));
++  return (UINTN)(EVP_MD_meth_get_app_datasize(EvpMdSt)+ sizeof (struct evp_md_ctx_st));
++#endif
++  return 0;
+ }
+ 
+ /**
+@@ -669,19 +683,15 @@ Shake256Init (
+   OUT  VOID  *Shake256Context
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+ 
+-  EvpMd = EVP_shake256 ();
+-
+-  EvpMdCtx = (struct evp_md_ctx_st *)Shake256Context;
+-  EvpMdCtx->md_data = (UINT8*)Shake256Context + sizeof (struct evp_md_ctx_st);
+-  EvpMdCtx->digest = EvpMd;
+-  EvpMdCtx->engine = NULL;
+-  EvpMdSt = (struct evp_md_st  *)EvpMd;
++  //
++  // Check input parameters.
++  //
++  if (Shake256Context == NULL) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->init(EvpMdCtx);
++  return (BOOLEAN) EVP_DigestInit_ex((EVP_MD_CTX *) Shake256Context, EVP_shake256(), NULL);
+ }
+ 
+ /**
+@@ -706,6 +716,7 @@ Shake256Duplicate (
+   OUT  VOID        *NewShake256Context
+   )
+ {
++#if 0
+   UINTN CtxSize;
+   if (Shake256Context == NULL || NewShake256Context == NULL) {
+     return FALSE;
+@@ -713,6 +724,7 @@ Shake256Duplicate (
+ 
+   CtxSize = Shake256GetContextSize();
+   CopyMem (NewShake256Context, Shake256Context, CtxSize);
++#endif
+   return TRUE;
+ }
+ 
+@@ -742,16 +754,22 @@ Shake256Update (
+   IN      UINTN       DataSize
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+ 
+-  EvpMdCtx = (struct evp_md_ctx_st *)Shake256Context;
++  //
++  // Check input parameters.
++  //
++  if (Shake256Context == NULL) {
++    return FALSE;
++  }
+ 
+-  EvpMd = EVP_shake256 ();
+-  EvpMdSt = (struct evp_md_st *)EvpMd;
++  //
++  // Check invalid parameters, in case that only DataLength was checked in Openssl
++  //
++  if (Data == NULL && DataSize != 0) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->update(EvpMdCtx, Data, (size_t)DataSize);
++  return (BOOLEAN) EVP_DigestUpdate ((EVP_MD_CTX *) Shake256Context, Data, (size_t)DataSize);
+ }
+ 
+ /**
+@@ -781,16 +799,16 @@ Shake256Final (
+   OUT     UINT8  *HashValue
+   )
+ {
+-  CONST     EVP_MD      *EvpMd;
+-  struct evp_md_st      *EvpMdSt;
+-  struct evp_md_ctx_st  *EvpMdCtx;
+-
+-  EvpMdCtx = (struct evp_md_ctx_st *)Shake256Context;
++  UINT32 HashLen;
+ 
+-  EvpMd = EVP_shake256 ();
+-  EvpMdSt = (struct evp_md_st *)EvpMd;
++  //
++  // Check input parameters.
++  //
++  if (Shake256Context == NULL || HashValue == NULL) {
++    return FALSE;
++  }
+ 
+-  return (BOOLEAN) EvpMdSt->final(EvpMdCtx, HashValue);
++  return (BOOLEAN) EVP_DigestFinal_ex ((EVP_MD_CTX *) Shake256Context, HashValue, &HashLen);
+ }
+ 
+ /**
+diff --git a/OsStub/BaseCryptLibOpenssl/Hash/CryptSm3.c b/OsStub/BaseCryptLibOpenssl/Hash/CryptSm3.c
+index 235331c..b6a0c18 100644
+--- a/OsStub/BaseCryptLibOpenssl/Hash/CryptSm3.c
++++ b/OsStub/BaseCryptLibOpenssl/Hash/CryptSm3.c
+@@ -7,7 +7,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
+ **/
+ 
+ #include "InternalCryptLib.h"
+-#include "crypto/sm3.h"
++#include <openssl/evp.h>
+ 
+ /**
+   Retrieves the size, in bytes, of the context buffer required for SM3 hash operations.
+@@ -24,7 +24,9 @@ Sm3GetContextSize (
+   //
+   // Retrieves Openssl SM3 Context Size
+   //
++#if 0
+   return (UINTN) (sizeof (SM3_CTX));
++#endif
+ }
+ 
+ /**
+@@ -55,8 +57,7 @@ Sm3Init (
+   //
+   // Openssl SM3 Context Initialization
+   //
+-  sm3_init ((SM3_CTX *) Sm3Context);
+-  return TRUE;
++  return (BOOLEAN) EVP_DigestInit_ex((EVP_MD_CTX *) Sm3Context, EVP_sm3(), NULL);
+ }
+ 
+ /**
+@@ -81,6 +82,7 @@ Sm3Duplicate (
+   OUT  VOID        *NewSm3Context
+   )
+ {
++#if 0
+   //
+   // Check input parameters.
+   //
+@@ -90,6 +92,7 @@ Sm3Duplicate (
+ 
+   CopyMem (NewSm3Context, Sm3Context, sizeof (SM3_CTX));
+ 
++#endif
+   return TRUE;
+ }
+ 
+@@ -136,9 +139,8 @@ Sm3Update (
+   //
+   // Openssl SM3 Hash Update
+   //
+-  sm3_update ((SM3_CTX *) Sm3Context, Data, DataSize);
++  return (BOOLEAN) EVP_DigestUpdate ((EVP_MD_CTX *) Sm3Context, Data, (size_t)DataSize);
+ 
+-  return TRUE;
+ }
+ 
+ /**
+@@ -168,6 +170,7 @@ Sm3Final (
+   OUT     UINT8  *HashValue
+   )
+ {
++  UINT32 HashLen;
+   //
+   // Check input parameters.
+   //
+@@ -178,7 +181,7 @@ Sm3Final (
+   //
+   // Openssl SM3 Hash Finalization
+   //
+-  sm3_final (HashValue, (SM3_CTX *) Sm3Context);
++  return (BOOLEAN) EVP_DigestFinal_ex ((EVP_MD_CTX *) Sm3Context, HashValue, &HashLen);
+ 
+   return TRUE;
+ }
+@@ -209,7 +212,8 @@ Sm3HashAll (
+   OUT  UINT8       *HashValue
+   )
+ {
+-  SM3_CTX Ctx;
++  BOOLEAN   Status;
++  EVP_MD_CTX *HashContext;
+ 
+   //
+   // Check input parameters.
+@@ -224,11 +228,18 @@ Sm3HashAll (
+   //
+   // SM3 Hash Computation.
+   //
+-  sm3_init(&Ctx);
+-
+-  sm3_update(&Ctx, Data, DataSize);
+-
+-  sm3_final(HashValue, &Ctx);
++  HashContext = EVP_MD_CTX_new();
++  if (HashContext == NULL) {
++      return FALSE;
++  }
++  Status = Sm3Init(HashContext);
++  if (Status) {
++    Status = Sm3Update (HashContext, Data, DataSize);
++  }
++  if (Status) {
++    Status = Sm3Final (HashContext, HashValue);
++  }
+ 
+-  return TRUE;
++  EVP_MD_CTX_free(HashContext);
++  return Status;
+ }
+diff --git a/OsStub/BaseCryptLibOpenssl/Pk/CryptPkcs7VerifyEku.c b/OsStub/BaseCryptLibOpenssl/Pk/CryptPkcs7VerifyEku.c
+index f2dd3bd..3aa4581 100644
+--- a/OsStub/BaseCryptLibOpenssl/Pk/CryptPkcs7VerifyEku.c
++++ b/OsStub/BaseCryptLibOpenssl/Pk/CryptPkcs7VerifyEku.c
+@@ -11,17 +11,16 @@
+ 
+ #include <Base.h>
+ #include "InternalCryptLib.h"
++#include <openssl/conf.h>
+ #include <openssl/x509v3.h>
+ #include <openssl/asn1.h>
+ #include <openssl/x509.h>
+ #include <openssl/bio.h>
+-#include <crypto/x509.h>
+ #include <openssl/pkcs7.h>
+ #include <openssl/bn.h>
+ #include <openssl/x509_vfy.h>
+ #include <openssl/pem.h>
+ #include <openssl/evp.h>
+-#include <crypto/asn1.h>
+ 
+ /**
+   This function will return the leaf signer certificate in a chain.  This is
+@@ -215,8 +214,8 @@ IsEkuInCertificate (
+       goto Exit;
+     }
+ 
+-    if (Asn1InCert->length == Asn1ToFind->length &&
+-        CompareMem (Asn1InCert->data, Asn1ToFind->data, Asn1InCert->length) == 0) {
++    if (OBJ_length(Asn1InCert) == OBJ_length(Asn1ToFind)&&
++        CompareMem (OBJ_get0_data(Asn1InCert), OBJ_get0_data(Asn1ToFind), OBJ_length(Asn1InCert)) == 0) {
+       //
+       // Found Eku in certificate.
+       //
+diff --git a/OsStub/BaseCryptLibOpenssl/Pk/CryptX509.c b/OsStub/BaseCryptLibOpenssl/Pk/CryptX509.c
+index 0b25e57..fb9379c 100644
+--- a/OsStub/BaseCryptLibOpenssl/Pk/CryptX509.c
++++ b/OsStub/BaseCryptLibOpenssl/Pk/CryptX509.c
+@@ -7,9 +7,9 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
+ **/
+ 
+ #include "InternalCryptLib.h"
++#include <openssl/conf.h>
+ #include <openssl/x509.h>
+ #include <openssl/x509v3.h>
+-#include <crypto/asn1.h>
+ #include <openssl/asn1.h>
+ #include <openssl/rsa.h>
+ 
+@@ -1092,15 +1092,15 @@ X509GetSignatureAlgorithm (
+     goto _Exit;
+   }
+ 
+-  if (*OidSize < (UINTN)Asn1Obj->length) {
+-    *OidSize = Asn1Obj->length;
++  if (*OidSize < (UINTN) OBJ_length(Asn1Obj)) {
++    *OidSize = OBJ_length(Asn1Obj);
+     ReturnStatus = RETURN_BUFFER_TOO_SMALL;
+     goto _Exit;
+   }
+   if (Oid != NULL) {
+-    CopyMem(Oid, Asn1Obj->data, Asn1Obj->length);
++    CopyMem(Oid, OBJ_get0_data(Asn1Obj), OBJ_length(Asn1Obj));
+   }
+-  *OidSize = Asn1Obj->length;
++  *OidSize = OBJ_length(Asn1Obj);
+   ReturnStatus = RETURN_SUCCESS;
+ 
+ _Exit:
+@@ -1462,7 +1462,7 @@ X509GetExtensionData (
+         continue;
+       }
+ 
+-      if(OidSize == (UINTN)Asn1Obj->length && CompareMem (Asn1Obj->data, Oid, OidSize) == 0) {
++      if(OidSize == (UINTN)OBJ_length(Asn1Obj) && CompareMem (OBJ_get0_data(Asn1Obj), Oid, OidSize) == 0) {
+         //
+         // Extension Found
+         //
+diff --git a/OsStub/BaseCryptLibOpenssl/SysCall/CrtWrapperHost.c b/OsStub/BaseCryptLibOpenssl/SysCall/CrtWrapperHost.c
+index 838731c..ed51cdc 100644
+--- a/OsStub/BaseCryptLibOpenssl/SysCall/CrtWrapperHost.c
++++ b/OsStub/BaseCryptLibOpenssl/SysCall/CrtWrapperHost.c
+@@ -109,4 +109,3 @@ gid_t getegid (void)
+   return 0;
+ }
+ 
+-int errno = 0;
+diff --git a/OsStub/OpensslLib/Include/CrtLibSupport.h b/OsStub/OpensslLib/Include/CrtLibSupport.h
+index f932641..c239a6a 100644
+--- a/OsStub/OpensslLib/Include/CrtLibSupport.h
++++ b/OsStub/OpensslLib/Include/CrtLibSupport.h
+@@ -143,7 +143,6 @@ struct sockaddr {
+ //
+ // Global variables
+ //
+-extern int  errno;
+ extern FILE *stderr;
+ 
+ //
+diff --git a/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt b/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt
+index fb11849..c19d572 100644
+--- a/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt
++++ b/SpdmEmu/SpdmRequesterEmu/CMakeLists.txt
+@@ -15,12 +15,6 @@ SET(src_SpdmRequesterTest
+     SpdmRequesterMeasurement.c
+     SpdmRequesterSession.c
+     SpdmRequesterEmu.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmu.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuCommand.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuKey.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuNvStorage.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuPcap.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuSupport.c
+ )
+ 
+ 
+@@ -40,22 +34,11 @@ if((TOOLCHAIN STREQUAL "KLEE") OR (TOOLCHAIN STREQUAL "CBMC"))
+                    $<TARGET_OBJECTS:SpdmTransportMctpLib>
+                    $<TARGET_OBJECTS:SpdmTransportPciDoeLib>
+                    $<TARGET_OBJECTS:SpdmDeviceSecretLib>
+-    ) 
++    )
+ else()
+-    ADD_LIBRARY(SpdmRequesterEmu SHARED
++    ADD_EXECUTABLE(SpdmRequesterEmu
+                    ${src_SpdmRequesterTest}
+-                   $<TARGET_OBJECTS:BaseMemoryLib>
+-                   $<TARGET_OBJECTS:DebugLib>
+-                   $<TARGET_OBJECTS:SpdmRequesterLib>
+-                   $<TARGET_OBJECTS:SpdmCommonLib>
+-                   $<TARGET_OBJECTS:RngLib>
+-                   $<TARGET_OBJECTS:BaseCryptLib${CRYPTO}>
+-                   $<TARGET_OBJECTS:MemoryAllocationLib>
+-                   $<TARGET_OBJECTS:SpdmCryptLib>
+-                   $<TARGET_OBJECTS:SpdmSecuredMessageLib>
+-                   $<TARGET_OBJECTS:SpdmTransportMctpLib>
+-                   $<TARGET_OBJECTS:SpdmTransportPciDoeLib>
+-                   $<TARGET_OBJECTS:SpdmDeviceSecretLib>
+     )
++    target_link_libraries (SpdmRequesterEmu SpdmEmu crypto ssl)
+ endif()
+-install(TARGETS SpdmRequesterEmu DESTINATION lib)
++install(TARGETS SpdmRequesterEmu DESTINATION bin)
+diff --git a/SpdmEmu/SpdmResponderEmu/CMakeLists.txt b/SpdmEmu/SpdmResponderEmu/CMakeLists.txt
+index 5f66aa6..5b5d6ac 100644
+--- a/SpdmEmu/SpdmResponderEmu/CMakeLists.txt
++++ b/SpdmEmu/SpdmResponderEmu/CMakeLists.txt
+@@ -13,29 +13,8 @@ SET(src_SpdmResponderTest
+     SpdmResponder.c
+     SpdmResponderSession.c
+     SpdmResponderEmu.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmu.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuCommand.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuKey.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuNvStorage.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuPcap.c
+-    ${PROJECT_SOURCE_DIR}/SpdmEmu/SpdmEmuCommon/SpdmEmuSupport.c
+ )
+ 
+-SET(SpdmResponderTest_LIBRARY
+-    BaseMemoryLib
+-    DebugLib
+-    SpdmResponderLib
+-    SpdmCommonLib
+-    #    ${CRYPTO}Lib
+-    RngLib
+-    BaseCryptLib${CRYPTO}
+-    MemoryAllocationLib
+-    SpdmCryptLib
+-    SpdmSecuredMessageLib
+-    SpdmTransportMctpLib
+-    SpdmTransportPciDoeLib
+-    SpdmDeviceSecretLib
+-)
+ 
+ if((TOOLCHAIN STREQUAL "KLEE") OR (TOOLCHAIN STREQUAL "CBMC"))
+     ADD_EXECUTABLE(SpdmResponderEmu
+@@ -53,9 +32,12 @@ if((TOOLCHAIN STREQUAL "KLEE") OR (TOOLCHAIN STREQUAL "CBMC"))
+                    $<TARGET_OBJECTS:SpdmTransportMctpLib>
+                    $<TARGET_OBJECTS:SpdmTransportPciDoeLib>
+                    $<TARGET_OBJECTS:SpdmDeviceSecretLib>
+-    ) 
++    )
+ else()
+-    ADD_EXECUTABLE(SpdmResponderEmu ${src_SpdmResponderTest})
+-    TARGET_LINK_LIBRARIES(SpdmResponderEmu ${SpdmResponderTest_LIBRARY})
++    ADD_EXECUTABLE(SpdmResponderEmu
++                   ${src_SpdmResponderTest}
++                   $<TARGET_OBJECTS:SpdmResponderLib>
++                  )
++    target_link_libraries (SpdmResponderEmu SpdmEmu crypto ssl)
+ endif()
+ install(TARGETS SpdmResponderEmu DESTINATION bin)

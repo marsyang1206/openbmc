@@ -1,0 +1,9 @@
+#!/bin/bash
+#qemu 6.xx
+qemu_exec=/home/mars/qemu/build/qemu-system-arm
+image_path="./build/tmp/deploy/images/evb-mars/flash-evb-mars"
+
+set -x
+slirpvde --dhcp &
+$qemu_exec -M ast2600-evb -m 512  -drive file=$image_path,format=raw,if=mtd -nodefaults -nographic  -serial  mon:stdio -net nic -net vde
+

@@ -8,7 +8,7 @@
 #  --- - ----- -------- -------- -------- -------- ------ -------- -------
 # |GPT| | env | boot-a | boot-b | rofs-a | rofs-b | rwfs | hostfw |GPT-sec|
 #  --- - ----- -------- -------- -------- -------- ------ -------- -------
-#       ^ 1MB    64MB     64MB     1GB      1GB     7GB     5GB
+#       ^ 1MB    64MB     64MB     128MB     128M (127M-37K) none
 #       |
 #       0x5000
 #
@@ -27,4 +27,3 @@ part --fstype=ext4 --fixed-size 64M --source bootimg-partition --label boot-b
 part --fstype=ext4 --fixed-size 128M --source rootfs --label rofs-a
 part --fstype=ext4 --fixed-size 128M --source rootfs --label rofs-b
 part --fstype=ext4 --fixed-size 130011K --label rwfs
-#part --fstype=ext4 --fixed-size ${WKS_HOSTFW_SIZE} --source rootfs --rootfs-dir=${DEPLOY_DIR_IMAGE}/hostfw/image/ --label hostfw

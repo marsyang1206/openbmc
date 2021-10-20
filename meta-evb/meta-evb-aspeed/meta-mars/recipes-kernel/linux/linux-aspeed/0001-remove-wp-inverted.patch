@@ -1,0 +1,22 @@
+From 631db23f379f565b454e00cb16453775561f1818 Mon Sep 17 00:00:00 2001
+From: MarsYang <deanjai@gmail.com>
+Date: Thu, 21 Oct 2021 00:10:27 +0800
+Subject: [PATCH] remove wp-inverted
+
+---
+ arch/arm/boot/dts/aspeed-ast2600-evb.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/boot/dts/aspeed-ast2600-evb.dts b/arch/arm/boot/dts/aspeed-ast2600-evb.dts
+index 2db9047077e1..5e744a02cdb4 100644
+--- a/arch/arm/boot/dts/aspeed-ast2600-evb.dts
++++ b/arch/arm/boot/dts/aspeed-ast2600-evb.dts
+@@ -275,7 +275,7 @@ &sdhci0 {
+ 	max-frequency = <100000000>;
+ 	sdhci-drive-type = /bits/ 8 <3>;
+ 	sdhci-caps-mask = <0x7 0x0>;
+-	sdhci,wp-inverted;
++	sdhci;
+ 	vmmc-supply = <&vcc_sdhci0>;
+ 	vqmmc-supply = <&vccq_sdhci0>;
+ 	clk-phase-sd-hs = <7>, <200>;

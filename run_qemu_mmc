@@ -1,0 +1,13 @@
+#!/bin/bash
+#qemu 6.xx
+qemu_exec=/home/mars/qemu/build/qemu-system-arm
+image_path="build/tmp/deploy/images/evb-mars/"
+initrd_path=$image_path"flash-evb-mars"
+mmc_image=$image_path"obmc-phosphor-image-evb-mars.wic"
+
+slirpvde --dhcp &
+
+cp -L $mmc_image".xz" $mmc_image".1.xz"
+rm $mmc_image".1"
+xz -d $mmc_image".1.xz"
+$qemu_exec -M ast2600-evb -m 512  -drive file=$initrd_path,format=raw,if=mtd -drive file=$mmc_image".1",format=raw,if=sd,index=0 -nodefaults -nographic  -serial  mon:stdio -net nic -net vde

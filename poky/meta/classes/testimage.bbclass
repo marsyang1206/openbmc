@@ -36,6 +36,7 @@ TESTIMAGE_AUTO ??= "0"
 # TEST_OVERALL_TIMEOUT can be used to set the maximum time in seconds the tests will be allowed to run (defaults to no limit).
 # TEST_QEMUPARAMS can be used to pass extra parameters to qemu, e.g. "-m 1024" for setting the amount of ram to 1 GB.
 # TEST_RUNQEMUPARAMS can be used to pass extra parameters to runqemu, e.g. "gl" to enable OpenGL acceleration.
+# QEMU_USE_KVM can be set to "" to disable the use of kvm (by default it is enabled if target_arch == build_arch or both of them are x86 archs)
 
 # TESTIMAGE_BOOT_PATTERNS can be used to override certain patterns used to communicate with the target when booting,
 # if a pattern is not specifically present on this variable a default will be used when booting the target.
@@ -60,12 +61,10 @@ BASICTESTSUITE = "\
     ping date df ssh scp python perl gi ptest parselogs \
     logrotate connman systemd oe_syslog pam stap ldd xorg \
     kernelmodule gcc buildcpio buildlzip buildgalculator \
-    dnf rpm opkg apt weston"
+    dnf rpm opkg apt weston go rust"
 
 DEFAULT_TEST_SUITES = "${BASICTESTSUITE}"
 
-# aarch64 has no graphics
-DEFAULT_TEST_SUITES:remove:aarch64 = "xorg"
 # musl doesn't support systemtap
 DEFAULT_TEST_SUITES:remove:libc-musl = "stap"
 
@@ -77,6 +76,7 @@ DEFAULT_TEST_SUITES:remove:qemumips64 = "${MIPSREMOVE}"
 
 TEST_SUITES ?= "${DEFAULT_TEST_SUITES}"
 
+QEMU_USE_KVM ?= "1"
 TEST_QEMUBOOT_TIMEOUT ?= "1000"
 TEST_OVERALL_TIMEOUT ?= ""
 TEST_TARGET ?= "qemu"
@@ -139,6 +139,7 @@ python do_testimage() {
 
 addtask testimage
 do_testimage[nostamp] = "1"
+do_testimage[network] = "1"
 do_testimage[depends] += "${TESTIMAGEDEPENDS}"
 do_testimage[lockfiles] += "${TESTIMAGELOCK}"
 
@@ -201,6 +202,7 @@ def testimage_main(d):
     import json
     import signal
     import logging
+    import shutil
 
     from bb.utils import export_proxies
     from oeqa.core.utils.misc import updateTestData
@@ -236,9 +238,10 @@ def testimage_main(d):
 
     tdname = "%s.testdata.json" % image_name
     try:
-        td = json.load(open(tdname, "r"))
-    except (FileNotFoundError) as err:
-         bb.fatal('File %s Not Found. Have you built the image with INHERIT+="testimage" in the conf/local.conf?' % tdname)
+        with open(tdname, "r") as f:
+            td = json.load(f)
+    except FileNotFoundError as err:
+        bb.fatal('File %s not found (%s).\nHave you built the image with INHERIT += "testimage" in the conf/local.conf?' % (tdname, err))
 
     # Some variables need to be updates (mostly paths) with the
     # ones of the current environment because some tests require them.
@@ -316,10 +319,6 @@ def testimage_main(d):
 
     if d.getVar("TESTIMAGE_BOOT_PATTERNS"):
         target_kwargs['boot_patterns'] = get_testimage_boot_patterns(d)
-
-    # TODO: Currently BBPATH is needed for custom loading of targets.
-    # It would be better to find these modules using instrospection.
-    target_kwargs['target_modules_path'] = d.getVar('BBPATH')
 
     # hardware controlled targets might need further access
     target_kwargs['powercontrol_cmd'] = d.getVar("TEST_POWERCONTROL_CMD") or None
@@ -408,10 +407,17 @@ def testimage_main(d):
                         get_testimage_result_id(configuration),
                         dump_streams=d.getVar('TESTREPORT_FULLLOGS'))
         results.logSummary(pn)
+
+    # Copy additional logs to tmp/log/oeqa so it's easier to find them
+    targetdir = os.path.join(get_testimage_json_result_dir(d), d.getVar("PN"))
+    os.makedirs(targetdir, exist_ok=True)
+    os.symlink(bootlog, os.path.join(targetdir, os.path.basename(bootlog)))
+    os.symlink(d.getVar("BB_LOGFILE"), os.path.join(targetdir, os.path.basename(d.getVar("BB_LOGFILE") + "." + d.getVar('DATETIME'))))
+
     if not results or not complete:
-        bb.fatal('%s - FAILED - tests were interrupted during execution' % pn, forcelog=True)
+        bb.fatal('%s - FAILED - tests were interrupted during execution, check the logs in %s' % (pn, d.getVar("LOG_DIR")), forcelog=True)
     if not results.wasSuccessful():
-        bb.fatal('%s - FAILED - check the task log and the ssh log' % pn, forcelog=True)
+        bb.fatal('%s - FAILED - also check the logs in %s' % (pn, d.getVar("LOG_DIR")), forcelog=True)
 
 def get_runtime_paths(d):
     """

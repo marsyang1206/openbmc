@@ -43,7 +43,7 @@ RDEPENDS:${PN}-bmc-state-mgmt = " \
 SUMMARY:${PN}-bmcweb = "bmcweb support"
 RDEPENDS:${PN}-bmcweb = " \
         bmcweb \
-        phosphor-bmcweb-cert-config \
+        phosphor-certificate-manager \
         "
 
 SUMMARY:${PN}-chassis-state-mgmt = "Chassis state management"
@@ -69,6 +69,7 @@ RDEPENDS:${PN}-devtools = " \
         libgpiod-tools \
         lrzsz \
         rsync \
+        trace-enable \
         "
 
 SUMMARY:${PN}-dbus-monitor = "Support for dbus monitoring"
@@ -195,6 +196,4 @@ RDEPENDS:${PN}-user-mgmt-ldap = " \
         ${PN}-user-mgmt \
         nss-pam-ldapd \
         phosphor-ldap \
-        phosphor-nslcd-cert-config \
-        phosphor-nslcd-authority-cert-config \
         "

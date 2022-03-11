@@ -14,7 +14,7 @@ DEPENDS += "phosphor-logging"
 
 S = "${WORKDIR}/git"
 
-SRC_URI += "git://github.com/openbmc/mboxbridge.git"
+SRC_URI += "git://github.com/openbmc/mboxbridge.git;branch=master;protocol=https"
 
 SRC_URI += "file://99-aspeed-lpc-ctrl.rules"
 
@@ -37,7 +37,7 @@ FMT = "../${TMPL}:${TGTFMT}.wants/${INSTFMT}"
 
 SYSTEMD_SERVICE:${PN} += "mboxd.service"
 SYSTEMD_SERVICE:${PN} += "mboxd-reload@.service"
-SYSTEMD_LINK_${PN} += "${@compose_list(d, 'FMT', 'OBMC_HOST_INSTANCES')}"
+SYSTEMD_LINK:${PN} += "${@compose_list(d, 'FMT', 'OBMC_HOST_INSTANCES')}"
 
 # Enable virtual-pnor by DISTRO_FEATURE openpower-virtual-pnor.
 PACKAGECONFIG:append:df-openpower-virtual-pnor = " virtual-pnor"

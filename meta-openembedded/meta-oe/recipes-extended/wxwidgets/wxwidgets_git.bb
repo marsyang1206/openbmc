@@ -10,7 +10,7 @@ LICENSE = "wxWidgets"
 LIC_FILES_CHKSUM = "file://docs/licence.txt;md5=981f50a934828620b08f44d75db557c6"
 
 inherit ${@bb.utils.contains('PACKAGECONFIG', 'qt', 'cmake_qt5', 'cmake', d)}
-inherit features_check lib_package binconfig
+inherit features_check lib_package binconfig pkgconfig
 
 # All toolkit-configs except 'no_gui' require x11 explicitly (see toolkit.cmake)
 REQUIRED_DISTRO_FEATURES = "${@bb.utils.contains('PACKAGECONFIG', 'no_gui', '', 'x11', d)}"
@@ -22,7 +22,7 @@ DEPENDS += " \
 "
 
 SRC_URI = " \
-    git://github.com/wxWidgets/wxWidgets.git \
+    git://github.com/wxWidgets/wxWidgets.git;branch=master;protocol=https \
     file://0001-wx-config.in-Disable-cross-magic-it-does-not-work-fo.patch \
 "
 PV = "3.1.4"

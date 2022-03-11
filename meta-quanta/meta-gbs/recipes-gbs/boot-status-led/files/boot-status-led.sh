@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BOOT_SERVICE_NAME="xyz.openbmc_project.State.Host0"
+BOOT_SERVICE_NAME="xyz.openbmc_project.State.Host"
 BOOT_STATUS_OBJPATH="/xyz/openbmc_project/state/os"
 BOOT_INTERFACE_NAME="xyz.openbmc_project.State.OperatingSystem.Status"
 BOOT_Property="OperatingSystemState"
@@ -11,7 +11,7 @@ LED_STANDBY_OBJPATH="/xyz/openbmc_project/led/groups/boot_status_standby"
 LED_INTERFACE_NAME="xyz.openbmc_project.Led.Group"
 LED_Property="Asserted"
 
-PWR_STATE_SERVICE="xyz.openbmc_project.State.Chassis0"
+PWR_STATE_SERVICE="xyz.openbmc_project.State.Chassis"
 PWR_STATE_OBJPATH="/xyz/openbmc_project/state/chassis0"
 PWR_STATE_INTERFACE_NAME="xyz.openbmc_project.State.Chassis"
 PWR_STATE_Property="CurrentPowerState"
@@ -35,10 +35,10 @@ while true; do
         fi
         continue
     else
-        if [[ $boot_status != "\"Standby\"" ]] && [[ $led_status != "BLINKING" ]];then
+        if [[ $boot_status != "\"xyz.openbmc_project.State.OperatingSystem.Status.OSStatus.Standby\"" ]] && [[ $led_status != "BLINKING" ]];then
             busctl set-property $LED_SERVICE_NAME $LED_INACTIVE_OBJPATH $LED_INTERFACE_NAME $LED_Property b true
             led_status="BLINKING"
-        elif [[ $boot_status == "\"Standby\"" ]] && [[ $led_status != "ON" ]];then
+        elif [[ $boot_status == "\"xyz.openbmc_project.State.OperatingSystem.Status.OSStatus.Standby\"" ]] && [[ $led_status != "ON" ]];then
             busctl set-property $LED_SERVICE_NAME $LED_INACTIVE_OBJPATH $LED_INTERFACE_NAME $LED_Property b false
             busctl set-property $LED_SERVICE_NAME $LED_STANDBY_OBJPATH $LED_INTERFACE_NAME $LED_Property b true
             led_status="ON"

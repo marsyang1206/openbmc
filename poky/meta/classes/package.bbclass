@@ -41,8 +41,6 @@
 inherit packagedata
 inherit chrpath
 inherit package_pkgdata
-
-# Need the package_qa_handle_error() in insane.bbclass
 inherit insane
 
 PKGD    = "${WORKDIR}/package"
@@ -392,10 +390,6 @@ def splitdebuginfo(file, dvar, debugdir, debuglibdir, debugappend, debugsrcdir, 
     dvar = d.getVar('PKGD')
     objcopy = d.getVar("OBJCOPY")
 
-    # We ignore kernel modules, we don't generate debug info files.
-    if file.find("/lib/modules/") != -1 and file.endswith(".ko"):
-        return (file, sources)
-
     newmode = None
     if not os.access(file, os.W_OK) or os.access(file, os.R_OK):
         origmode = os.stat(file)[stat.ST_MODE]
@@ -621,6 +615,8 @@ def get_package_mapping (pkg, basepkg, d, depversions=None):
     key = "PKG:%s" % pkg
 
     if key in data:
+        if bb.data.inherits_class('allarch', d) and bb.data.inherits_class('packagegroup', d) and pkg != data[key]:
+            bb.error("An allarch packagegroup shouldn't depend on packages which are dynamically renamed (%s to %s)" % (pkg, data[key]))
         # Have to avoid undoing the write_extra_pkgs(global_variants...)
         if bb.data.inherits_class('allarch', d) and not d.getVar('MULTILIB_VARIANTS') \
             and data[key] == basepkg:
@@ -714,9 +710,7 @@ python package_get_auto_pr() {
         return
 
     try:
-        conn = d.getVar("__PRSERV_CONN")
-        if conn is None:
-            conn = oe.prservice.prserv_make_conn(d)
+        conn = oe.prservice.prserv_make_conn(d)
         if conn is not None:
             if "AUTOINC" in pkgv:
                 srcpv = bb.fetch2.get_srcrev(d)
@@ -725,6 +719,7 @@ python package_get_auto_pr() {
                 d.setVar("PRSERV_PV_AUTOINC", str(value))
 
             auto_pr = conn.getPR(version, pkgarch, checksum)
+            conn.close()
     except Exception as e:
         bb.fatal("Can NOT get PRAUTO, exception %s" %  str(e))
     if auto_pr is None:
@@ -866,7 +861,7 @@ python fixup_perms () {
                 self._setdir(lsplit[0], lsplit[1], lsplit[2], lsplit[3], lsplit[4], lsplit[5], lsplit[6], lsplit[7])
             else:
                 msg = "Fixup Perms: invalid config line %s" % line
-                package_qa_handle_error("perm-config", msg, d)
+                oe.qa.handle_error("perm-config", msg, d)
                 self.path = None
                 self.link = None
 
@@ -1006,7 +1001,7 @@ python fixup_perms () {
                     continue
                 if len(lsplit) != 8 and not (len(lsplit) == 3 and lsplit[1].lower() == "link"):
                     msg = "Fixup perms: %s invalid line: %s" % (conf, line)
-                    package_qa_handle_error("perm-line", msg, d)
+                    oe.qa.handle_error("perm-line", msg, d)
                     continue
                 entry = fs_perms_entry(d.expand(line))
                 if entry and entry.path:
@@ -1043,7 +1038,7 @@ python fixup_perms () {
             ptarget = os.path.join(os.path.dirname(dir), link)
         if os.path.exists(target):
             msg = "Fixup Perms: Unable to correct directory link, target already exists: %s -> %s" % (dir, ptarget)
-            package_qa_handle_error("perm-link", msg, d)
+            oe.qa.handle_error("perm-link", msg, d)
             continue
 
         # Create path to move directory to, move it, and then setup the symlink
@@ -1123,7 +1118,6 @@ python split_and_strip_files () {
     #
     elffiles = {}
     symlinks = {}
-    kernmods = []
     staticlibs = []
     inodes = {}
     libdir = os.path.abspath(dvar + os.sep + d.getVar("libdir"))
@@ -1146,9 +1140,6 @@ python split_and_strip_files () {
                 if file in skipfiles:
                     continue
 
-                if file.endswith(".ko") and file.find("/lib/modules/") != -1:
-                    kernmods.append(file)
-                    continue
                 if oe.package.is_static_lib(file):
                     staticlibs.append(file)
                     continue
@@ -1165,8 +1156,11 @@ python split_and_strip_files () {
                 if not s:
                     continue
                 # Check its an executable
-                if (s[stat.ST_MODE] & stat.S_IXUSR) or (s[stat.ST_MODE] & stat.S_IXGRP) or (s[stat.ST_MODE] & stat.S_IXOTH) \
-                        or ((file.startswith(libdir) or file.startswith(baselibdir)) and (".so" in f or ".node" in f)):
+                if (s[stat.ST_MODE] & stat.S_IXUSR) or (s[stat.ST_MODE] & stat.S_IXGRP) \
+                        or (s[stat.ST_MODE] & stat.S_IXOTH) \
+                        or ((file.startswith(libdir) or file.startswith(baselibdir)) \
+                        and (".so" in f or ".node" in f)) \
+                        or (f.startswith('vmlinux') or ".ko" in f):
 
                     if cpath.islink(file):
                         checkelflinks[file] = ltarget
@@ -1203,7 +1197,7 @@ python split_and_strip_files () {
                         bb.note("Skipping file %s from %s for already-stripped QA test" % (file[len(dvar):], pn))
                     else:
                         msg = "File '%s' from %s was already stripped, this will prevent future debugging!" % (file[len(dvar):], pn)
-                        package_qa_handle_error("already-stripped", msg, d)
+                        oe.qa.handle_error("already-stripped", msg, d)
                     continue
 
                 # At this point we have an unstripped elf file. We need to:
@@ -1225,6 +1219,14 @@ python split_and_strip_files () {
                 # Modified the file so clear the cache
                 cpath.updatecache(file)
 
+    def strip_pkgd_prefix(f):
+        nonlocal dvar
+
+        if f.startswith(dvar):
+            return f[len(dvar):]
+
+        return f
+
     #
     # First lets process debug splitting
     #
@@ -1237,6 +1239,8 @@ python split_and_strip_files () {
             else:
                 for file in staticlibs:
                     results.append( (file,source_info(file, d)) )
+
+        d.setVar("PKGDEBUGSOURCES", {strip_pkgd_prefix(f): sorted(s) for f, s in results})
 
         sources = set()
         for r in results:
@@ -1303,8 +1307,6 @@ python split_and_strip_files () {
             elf_file = int(elffiles[file])
             #bb.note("Strip %s" % file)
             sfiles.append((file, elf_file, strip))
-        for f in kernmods:
-            sfiles.append((f, 16, strip))
         if (d.getVar('PACKAGE_STRIP_STATIC') == '1' or d.getVar('PACKAGE_DEBUG_STATIC_SPLIT') == '1'):
             for f in staticlibs:
                 sfiles.append((f, 16, strip))
@@ -1353,7 +1355,7 @@ python populate_packages () {
     for i, pkg in enumerate(packages):
         if pkg in package_dict:
             msg = "%s is listed in PACKAGES multiple times, this leads to packaging errors." % pkg
-            package_qa_handle_error("packages-list", msg, d)
+            oe.qa.handle_error("packages-list", msg, d)
         # Ensure the source package gets the chance to pick up the source files
         # before the debug package by ordering it first in PACKAGES. Whether it
         # actually picks up any source files is controlled by
@@ -1390,7 +1392,7 @@ python populate_packages () {
         filesvar = d.getVar('FILES:%s' % pkg) or ""
         if "//" in filesvar:
             msg = "FILES variable for package %s contains '//' which is invalid. Attempting to fix this but you should correct the metadata.\n" % pkg
-            package_qa_handle_error("files-invalid", msg, d)
+            oe.qa.handle_error("files-invalid", msg, d)
             filesvar.replace("//", "/")
 
         origfiles = filesvar.split()
@@ -1459,7 +1461,7 @@ python populate_packages () {
         licenses = d.getVar('LICENSE_EXCLUSION-' + pkg)
         if licenses:
             msg = "Excluding %s from packaging as it has incompatible license(s): %s" % (pkg, licenses)
-            package_qa_handle_error("incompatible-license", msg, d)
+            oe.qa.handle_error("incompatible-license", msg, d)
         else:
             package_list.append(pkg)
     d.setVar('PACKAGES', ' '.join(package_list))
@@ -1483,7 +1485,7 @@ python populate_packages () {
                 msg = msg + "\n  " + f
             msg = msg + "\nPlease set FILES such that these items are packaged. Alternatively if they are unneeded, avoid installing them or delete them within do_install.\n"
             msg = msg + "%s: %d installed and not shipped files." % (pn, len(unshipped))
-            package_qa_handle_error("installed-vs-shipped", msg, d)
+            oe.qa.handle_error("installed-vs-shipped", msg, d)
 }
 populate_packages[dirs] = "${D}"
 
@@ -1550,6 +1552,7 @@ PKGDATA_VARS = "PN PE PV PR PKGE PKGV PKGR LICENSE DESCRIPTION SUMMARY RDEPENDS 
 python emit_pkgdata() {
     from glob import glob
     import json
+    import bb.compress.zstd
 
     def process_postinst_on_target(pkg, mlprefix):
         pkgval = d.getVar('PKG:%s' % pkg)
@@ -1622,6 +1625,8 @@ fi
     with open(data_file, 'w') as fd:
         fd.write("PACKAGES: %s\n" % packages)
 
+    pkgdebugsource = d.getVar("PKGDEBUGSOURCES") or []
+
     pn = d.getVar('PN')
     global_variants = (d.getVar('MULTILIB_GLOBAL_VARIANTS') or "").split()
     variants = (d.getVar('MULTILIB_VARIANTS') or "").split()
@@ -1641,18 +1646,33 @@ fi
             pkgval = pkg
             d.setVar('PKG:%s' % pkg, pkg)
 
+        extended_data = {
+            "files_info": {}
+        }
+
         pkgdestpkg = os.path.join(pkgdest, pkg)
         files = {}
+        files_extra = {}
         total_size = 0
         seen = set()
         for f in pkgfiles[pkg]:
-            relpth = os.path.relpath(f, pkgdestpkg)
+            fpath = os.sep + os.path.relpath(f, pkgdestpkg)
+
             fstat = os.lstat(f)
-            files[os.sep + relpth] = fstat.st_size
+            files[fpath] = fstat.st_size
+
+            extended_data["files_info"].setdefault(fpath, {})
+            extended_data["files_info"][fpath]['size'] = fstat.st_size
+
             if fstat.st_ino not in seen:
                 seen.add(fstat.st_ino)
                 total_size += fstat.st_size
-        d.setVar('FILES_INFO', json.dumps(files, sort_keys=True))
+
+            if fpath in pkgdebugsource:
+                extended_data["files_info"][fpath]['debugsrc'] = pkgdebugsource[fpath]
+                del pkgdebugsource[fpath]
+
+        d.setVar('FILES_INFO:' + pkg , json.dumps(files, sort_keys=True))
 
         process_postinst_on_target(pkg, d.getVar("MLPREFIX"))
         add_set_e_to_scriptlets(pkg)
@@ -1663,14 +1683,19 @@ fi
                 val = write_if_exists(sf, pkg, var)
 
             write_if_exists(sf, pkg, 'FILERPROVIDESFLIST')
-            for dfile in (d.getVar('FILERPROVIDESFLIST:' + pkg) or "").split():
+            for dfile in sorted((d.getVar('FILERPROVIDESFLIST:' + pkg) or "").split()):
                 write_if_exists(sf, pkg, 'FILERPROVIDES:' + dfile)
 
             write_if_exists(sf, pkg, 'FILERDEPENDSFLIST')
-            for dfile in (d.getVar('FILERDEPENDSFLIST:' + pkg) or "").split():
+            for dfile in sorted((d.getVar('FILERDEPENDSFLIST:' + pkg) or "").split()):
                 write_if_exists(sf, pkg, 'FILERDEPENDS:' + dfile)
 
-            sf.write('%s_%s: %d\n' % ('PKGSIZE', pkg, total_size))
+            sf.write('%s:%s: %d\n' % ('PKGSIZE', pkg, total_size))
+
+        subdata_extended_file = pkgdatadir + "/extended/%s.json.zstd" % pkg
+        num_threads = int(d.getVar("BB_NUMBER_THREADS"))
+        with bb.compress.zstd.open(subdata_extended_file, "wt", encoding="utf-8", num_threads=num_threads) as f:
+            json.dump(extended_data, f, sort_keys=True, separators=(",", ":"))
 
         # Symlinks needed for rprovides lookup
         rprov = d.getVar('RPROVIDES:%s' % pkg) or d.getVar('RPROVIDES')
@@ -1702,7 +1727,8 @@ fi
         write_extra_runtime_pkgs(global_variants, packages, pkgdatadir)
 
 }
-emit_pkgdata[dirs] = "${PKGDESTWORK}/runtime ${PKGDESTWORK}/runtime-reverse ${PKGDESTWORK}/runtime-rprovides"
+emit_pkgdata[dirs] = "${PKGDESTWORK}/runtime ${PKGDESTWORK}/runtime-reverse ${PKGDESTWORK}/runtime-rprovides ${PKGDESTWORK}/extended"
+emit_pkgdata[vardepsexclude] = "BB_NUMBER_THREADS"
 
 ldconfig_postinst_fragment() {
 if [ x"$D" = "x" ]; then
@@ -1764,9 +1790,9 @@ python package_do_filedeps() {
             d.appendVar(key, " " + " ".join(requires[file]))
 
     for pkg in requires_files:
-        d.setVar("FILERDEPENDSFLIST:" + pkg, " ".join(requires_files[pkg]))
+        d.setVar("FILERDEPENDSFLIST:" + pkg, " ".join(sorted(requires_files[pkg])))
     for pkg in provides_files:
-        d.setVar("FILERPROVIDESFLIST:" + pkg, " ".join(provides_files[pkg]))
+        d.setVar("FILERPROVIDESFLIST:" + pkg, " ".join(sorted(provides_files[pkg])))
 }
 
 SHLIBSDIRS = "${WORKDIR_PKGDATA}/${MLPREFIX}shlibs2"
@@ -1805,7 +1831,7 @@ python package_do_shlibs() {
     ver = d.getVar('PKGV')
     if not ver:
         msg = "PKGV not defined"
-        package_qa_handle_error("pkgv-undefined", msg, d)
+        oe.qa.handle_error("pkgv-undefined", msg, d)
         return
 
     pkgdest = d.getVar('PKGDEST')
@@ -1845,7 +1871,7 @@ python package_do_shlibs() {
                         sonames.add(prov)
                 if libdir_re.match(os.path.dirname(file)):
                     needs_ldconfig = True
-                if snap_symlinks and (os.path.basename(file) != this_soname):
+                if needs_ldconfig and snap_symlinks and (os.path.basename(file) != this_soname):
                     renames.append((file, os.path.join(os.path.dirname(file), this_soname)))
         return (needs_ldconfig, needed, sonames, renames)
 
@@ -2079,12 +2105,12 @@ python package_do_pkgconfig () {
     for pkg in packages.split():
         pkgconfig_provided[pkg] = []
         pkgconfig_needed[pkg] = []
-        for file in pkgfiles[pkg]:
+        for file in sorted(pkgfiles[pkg]):
                 m = pc_re.match(file)
                 if m:
                     pd = bb.data.init()
                     name = m.group(1)
-                    pkgconfig_provided[pkg].append(name)
+                    pkgconfig_provided[pkg].append(os.path.basename(name))
                     if not os.access(file, os.R_OK):
                         continue
                     with open(file, 'r') as f:
@@ -2107,7 +2133,7 @@ python package_do_pkgconfig () {
         pkgs_file = os.path.join(shlibswork_dir, pkg + ".pclist")
         if pkgconfig_provided[pkg] != []:
             with open(pkgs_file, 'w') as f:
-                for p in pkgconfig_provided[pkg]:
+                for p in sorted(pkgconfig_provided[pkg]):
                     f.write('%s\n' % p)
 
     # Go from least to most specific since the last one found wins
@@ -2369,7 +2395,7 @@ python do_package () {
 
     if not workdir or not outdir or not dest or not dvar or not pn:
         msg = "WORKDIR, DEPLOY_DIR, D, PN and PKGD all must be defined, unable to package"
-        package_qa_handle_error("var-undefined", msg, d)
+        oe.qa.handle_error("var-undefined", msg, d)
         return
 
     bb.build.exec_func("package_convert_pr_autoinc", d)
@@ -2422,9 +2448,7 @@ python do_package () {
     for f in (d.getVar('PACKAGEFUNCS') or '').split():
         bb.build.exec_func(f, d)
 
-    qa_sane = d.getVar("QA_SANE")
-    if not qa_sane:
-        bb.fatal("Fatal QA errors found, failing task.")
+    oe.qa.exit_if_errors(d)
 }
 
 do_package[dirs] = "${SHLIBSWORKDIR} ${PKGDESTWORK} ${D}"

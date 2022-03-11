@@ -15,7 +15,7 @@ PACKAGECONFIG[popt] = "--without-included-popt,--with-included-popt,popt"
 
 RRECOMMENDS:${PN}-server = "avahi-daemon"
 
-SRC_URI = "git://github.com/distcc/distcc.git \
+SRC_URI = "git://github.com/distcc/distcc.git;branch=master;protocol=https \
            file://default \
            file://distcc \
            file://distcc.service \
@@ -52,9 +52,9 @@ do_install() {
     install -d ${D}${sysconfdir}/default
     install -m 0755 ${WORKDIR}/distcc ${D}${sysconfdir}/init.d/
     install -m 0755 ${WORKDIR}/default ${D}${sysconfdir}/default/distcc
-    install -d ${D}${systemd_unitdir}/system/
-    install -m 0644 ${WORKDIR}/distcc.service ${D}${systemd_unitdir}/system
-    sed -i -e 's,@BINDIR@,${bindir},g' ${D}${systemd_unitdir}/system/distcc.service
+    install -d ${D}${systemd_system_unitdir}/
+    install -m 0644 ${WORKDIR}/distcc.service ${D}${systemd_system_unitdir}
+    sed -i -e 's,@BINDIR@,${bindir},g' ${D}${systemd_system_unitdir}/distcc.service
 }
 
 FILES:${PN}-server = "${sysconfdir} \

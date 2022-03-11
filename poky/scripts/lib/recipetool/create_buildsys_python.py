@@ -8,7 +8,7 @@
 import ast
 import codecs
 import collections
-import distutils.command.build_py
+import setuptools.command.build_py
 import email
 import imp
 import glob
@@ -101,7 +101,7 @@ class PythonRecipeHandler(RecipeHandler):
         'License :: OSI Approved :: Apple Public Source License': 'APSL',
         'License :: OSI Approved :: Artistic License': 'Artistic',
         'License :: OSI Approved :: Attribution Assurance License': 'AAL',
-        'License :: OSI Approved :: BSD License': 'BSD',
+        'License :: OSI Approved :: BSD License': 'BSD-3-Clause',
         'License :: OSI Approved :: Common Public License': 'CPL',
         'License :: OSI Approved :: Eiffel Forum License': 'EFL',
         'License :: OSI Approved :: European Union Public Licence 1.0 (EUPL 1.0)': 'EUPL-1.0',
@@ -459,9 +459,13 @@ class PythonRecipeHandler(RecipeHandler):
         else:
             package_dir = {}
 
-        class PackageDir(distutils.command.build_py.build_py):
+        dist = setuptools.Distribution()
+
+        class PackageDir(setuptools.command.build_py.build_py):
             def __init__(self, package_dir):
                 self.package_dir = package_dir
+                self.dist = dist
+                super().__init__(self.dist)
 
         pd = PackageDir(package_dir)
         to_scan = []
@@ -545,7 +549,7 @@ class PythonRecipeHandler(RecipeHandler):
             with open(pkgdatafile, 'r') as f:
                 for line in f.readlines():
                     field, value = line.split(': ', 1)
-                    if field == 'FILES_INFO':
+                    if field.startswith('FILES_INFO'):
                         files_info = ast.literal_eval(value)
                         break
                 else:

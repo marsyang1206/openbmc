@@ -17,7 +17,7 @@ BitBake build tools.
 # Based on functions from the base bb module, Copyright 2003 Holger Schurig
 
 import copy, re, sys, traceback
-from collections import MutableMapping
+from collections.abc import MutableMapping
 import logging
 import hashlib
 import bb, bb.codeparser
@@ -151,6 +151,7 @@ class ExpansionError(Exception):
         self.expression = expression
         self.variablename = varname
         self.exception = exception
+        self.varlist = [varname or expression or ""]
         if varname:
             if expression:
                 self.msg = "Failure expanding variable %s, expression was %s which triggered exception %s: %s" % (varname, expression, type(exception).__name__, exception)
@@ -160,8 +161,14 @@ class ExpansionError(Exception):
             self.msg = "Failure expanding expression %s which triggered exception %s: %s" % (expression, type(exception).__name__, exception)
         Exception.__init__(self, self.msg)
         self.args = (varname, expression, exception)
+
+    def addVar(self, varname):
+        if varname:
+            self.varlist.append(varname)
+
     def __str__(self):
-        return self.msg
+        chain = "\nThe variable dependency chain for the failure is: " + " -> ".join(self.varlist)
+        return self.msg + chain
 
 class IncludeHistory(object):
     def __init__(self, parent = None, filename = '[TOP LEVEL]'):
@@ -403,13 +410,16 @@ class DataSmart(MutableMapping):
                     s = __expand_python_regexp__.sub(varparse.python_sub, s)
                 except SyntaxError as e:
                     # Likely unmatched brackets, just don't expand the expression
-                    if e.msg != "EOL while scanning string literal":
+                    if e.msg != "EOL while scanning string literal" and not e.msg.startswith("unterminated string literal"):
                         raise
                 if s == olds:
                     break
-            except ExpansionError:
+            except ExpansionError as e:
+                e.addVar(varname)
                 raise
             except bb.parse.SkipRecipe:
+                raise
+            except bb.BBHandledException:
                 raise
             except Exception as exc:
                 tb = sys.exc_info()[2]
@@ -482,7 +492,7 @@ class DataSmart(MutableMapping):
     def setVar(self, var, value, **loginfo):
         #print("var=" + str(var) + "  val=" + str(value))
 
-        if "_append" in var or "_prepend" in var or "_remove" in var:
+        if not var.startswith("__anon_") and ("_append" in var or "_prepend" in var or "_remove" in var):
             info = "%s" % var
             if "filename" in loginfo:
                 info += " file: %s" % loginfo[filename]
@@ -800,7 +810,7 @@ class DataSmart(MutableMapping):
                     expanded_removes[r] = self.expand(r).split()
 
                 parser.removes = set()
-                val = ""
+                val = []
                 for v in __whitespace_split__.split(parser.value):
                     skip = False
                     for r in removes:
@@ -809,8 +819,8 @@ class DataSmart(MutableMapping):
                             skip = True
                     if skip:
                         continue
-                    val = val + v
-                parser.value = val
+                    val.append(v)
+                parser.value = "".join(val)
                 if expand:
                     value = parser.value
 

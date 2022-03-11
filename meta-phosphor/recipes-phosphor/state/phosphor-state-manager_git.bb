@@ -21,6 +21,7 @@ STATE_MGR_PACKAGES = " \
     ${PN}-systemd-target-monitor \
     ${PN}-obmc-targets \
     ${PN}-scheduled-host-transition \
+    ${PN}-chassis-check-power-status \
 "
 PACKAGE_BEFORE_PN += "${STATE_MGR_PACKAGES}"
 ALLOW_EMPTY:${PN} = "1"
@@ -54,10 +55,11 @@ DEPENDS += "phosphor-dbus-interfaces"
 DEPENDS += "libcereal"
 DEPENDS += "nlohmann-json"
 DEPENDS += "cli11"
+DEPENDS += "libgpiod"
 
 RDEPENDS:${PN}-chassis += "bash"
 
-EXTRA_OEMESON += "-Dtests=disabled"
+EXTRA_OEMESON:append = " -Dtests=disabled"
 
 FILES:${PN}-host = "${bindir}/phosphor-host-state-manager"
 DBUS_SERVICE:${PN}-host += "xyz.openbmc_project.State.Host.service"
@@ -73,7 +75,9 @@ DBUS_SERVICE:${PN}-chassis += "xyz.openbmc_project.State.Chassis.service"
 FILES:${PN}-chassis += "${bindir}/obmcutil"
 
 FILES:${PN}-bmc = "${bindir}/phosphor-bmc-state-manager"
+FILES:${PN}-bmc += "${sysconfdir}/phosphor-systemd-target-monitor/phosphor-service-monitor-default.json"
 DBUS_SERVICE:${PN}-bmc += "xyz.openbmc_project.State.BMC.service"
+DBUS_SERVICE:${PN}-bmc += "obmc-bmc-service-quiesce@.target"
 
 FILES:${PN}-hypervisor = "${bindir}/phosphor-hypervisor-state-manager"
 DBUS_SERVICE:${PN}-hypervisor += "xyz.openbmc_project.State.Hypervisor.service"
@@ -83,6 +87,9 @@ SYSTEMD_SERVICE:${PN}-discover += "phosphor-discover-system-state@.service"
 
 FILES:${PN}-host-check = "${bindir}/phosphor-host-check"
 SYSTEMD_SERVICE:${PN}-host-check += "phosphor-reset-host-running@.service"
+FILES:${PN}-host-check = "${bindir}/phosphor-host-reset-recovery"
+SYSTEMD_SERVICE:${PN}-host-check += "phosphor-reset-host-recovery@.service"
+
 
 SYSTEMD_SERVICE:${PN}-reset-sensor-states += "phosphor-reset-sensor-states@.service"
 
@@ -94,6 +101,9 @@ SYSTEMD_SERVICE:${PN}-systemd-target-monitor += "phosphor-systemd-target-monitor
 
 FILES:${PN}-scheduled-host-transition = "${bindir}/phosphor-scheduled-host-transition"
 DBUS_SERVICE:${PN}-scheduled-host-transition += "xyz.openbmc_project.State.ScheduledHostTransition.service"
+
+FILES:${PN}-chassis-check-power-status = "${bindir}/phosphor-chassis-check-power-status"
+SYSTEMD_SERVICE:${PN}-chassis-check-power-status += "phosphor-chassis-check-power-status@.service"
 
 # Chassis power synchronization targets
 # - start-pre:         Services to run before we start power on process
@@ -174,14 +184,15 @@ SYSTEMD_SERVICE:${PN}-obmc-targets += "${@compose_list(d, 'CHASSIS_ACTION_FMT', 
 SYSTEMD_SERVICE:${PN}-obmc-targets += "${@compose_list(d, 'HOST_SYNCH_FMT', 'HOST_SYNCH_TARGETS')}"
 SYSTEMD_SERVICE:${PN}-obmc-targets += "${@compose_list(d, 'HOST_ACTION_FMT', 'HOST_ACTION_TARGETS')}"
 
-SYSTEMD_LINK_${PN}-obmc-targets += "${@compose_list(d, 'CHASSIS_LINK_SYNCH_FMT', 'CHASSIS_SYNCH_TARGETS', 'OBMC_CHASSIS_INSTANCES')}"
-SYSTEMD_LINK_${PN}-obmc-targets += "${@compose_list(d, 'CHASSIS_LINK_ACTION_FMT', 'CHASSIS_ACTION_TARGETS', 'OBMC_CHASSIS_INSTANCES')}"
-SYSTEMD_LINK_${PN}-obmc-targets += "${@compose_list(d, 'HOST_LINK_SYNCH_FMT', 'HOST_SYNCH_TARGETS', 'OBMC_HOST_INSTANCES')}"
-SYSTEMD_LINK_${PN}-obmc-targets += "${@compose_list(d, 'HOST_LINK_ACTION_FMT', 'HOST_ACTION_TARGETS', 'OBMC_HOST_INSTANCES')}"
-SYSTEMD_LINK_${PN}-obmc-targets += "${@compose_list(d, 'FAN_LINK_FMT', 'OBMC_CHASSIS_INSTANCES')}"
-SYSTEMD_LINK_${PN}-obmc-targets += "${@compose_list(d, 'QUIESCE_FMT', 'HOST_ERROR_TARGETS', 'OBMC_HOST_INSTANCES')}"
+SYSTEMD_LINK:${PN}-obmc-targets += "${@compose_list(d, 'CHASSIS_LINK_SYNCH_FMT', 'CHASSIS_SYNCH_TARGETS', 'OBMC_CHASSIS_INSTANCES')}"
+SYSTEMD_LINK:${PN}-obmc-targets += "${@compose_list(d, 'CHASSIS_LINK_ACTION_FMT', 'CHASSIS_ACTION_TARGETS', 'OBMC_CHASSIS_INSTANCES')}"
+SYSTEMD_LINK:${PN}-obmc-targets += "${@compose_list(d, 'HOST_LINK_SYNCH_FMT', 'HOST_SYNCH_TARGETS', 'OBMC_HOST_INSTANCES')}"
+SYSTEMD_LINK:${PN}-obmc-targets += "${@compose_list(d, 'HOST_LINK_ACTION_FMT', 'HOST_ACTION_TARGETS', 'OBMC_HOST_INSTANCES')}"
+SYSTEMD_LINK:${PN}-obmc-targets += "${@compose_list(d, 'FAN_LINK_FMT', 'OBMC_CHASSIS_INSTANCES')}"
+SYSTEMD_LINK:${PN}-obmc-targets += "${@compose_list(d, 'QUIESCE_FMT', 'HOST_ERROR_TARGETS', 'OBMC_HOST_INSTANCES')}"
 
-SRC_URI += "git://github.com/openbmc/phosphor-state-manager"
-SRCREV = "0d1c3f1f9329c853677f0581287afef83eeea0f0"
+
+SRC_URI += "git://github.com/openbmc/phosphor-state-manager;branch=master;protocol=https"
+SRCREV = "2e352a21b64c6dcfe3bea980ff459d99f355828f"
 
 S = "${WORKDIR}/git"

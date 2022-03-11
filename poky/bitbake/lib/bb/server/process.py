@@ -326,10 +326,10 @@ class ProcessServer():
                         if e.errno != errno.ENOENT:
                             raise
 
-                msg = "Delaying shutdown due to active processes which appear to be holding bitbake.lock"
+                msg = ["Delaying shutdown due to active processes which appear to be holding bitbake.lock"]
                 if procs:
-                    msg += ":\n%s" % str(procs.decode("utf-8"))
-                serverlog(msg)
+                    msg.append(":\n%s" % str(procs.decode("utf-8")))
+                serverlog("".join(msg))
 
     def idle_commands(self, delay, fds=None):
         nextsleep = delay
@@ -473,7 +473,7 @@ class BitBakeServer(object):
             try:
                 r = ready.get()
             except EOFError:
-                # Trap the child exitting/closing the pipe and error out
+                # Trap the child exiting/closing the pipe and error out
                 r = None
         if not r or r[0] != "r":
             ready.close()
@@ -661,7 +661,7 @@ class BBUIEventQueue:
         self.reader = ConnectionReader(readfd)
 
         self.t = threading.Thread()
-        self.t.setDaemon(True)
+        self.t.daemon = True
         self.t.run = self.startCallbackHandler
         self.t.start()
 

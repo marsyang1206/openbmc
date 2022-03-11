@@ -24,15 +24,17 @@ section in the Yocto Project Overview and Concepts Manual.
 Creating Your Own Layer
 -----------------------
 
-It is very easy to create your own layers to use with the OpenEmbedded
-build system. The Yocto Project ships with tools that speed up creating
-layers. This section describes the steps you perform by hand to create
-layers so that you can better understand them. For information about the
-layer-creation tools, see the
-":ref:`bsp-guide/bsp:creating a new bsp layer using the \`\`bitbake-layers\`\` script`"
-section in the Yocto Project Board Support Package (BSP) Developer's
-Guide and the ":ref:`dev-manual/common-tasks:creating a general layer using the \`\`bitbake-layers\`\` script`"
-section further down in this manual.
+.. note::
+
+   It is very easy to create your own layers to use with the OpenEmbedded
+   build system, as the Yocto Project ships with tools that speed up creating
+   layers. This section describes the steps you perform by hand to create
+   layers so that you can better understand them. For information about the
+   layer-creation tools, see the
+   ":ref:`bsp-guide/bsp:creating a new bsp layer using the \`\`bitbake-layers\`\` script`"
+   section in the Yocto Project Board Support Package (BSP) Developer's
+   Guide and the ":ref:`dev-manual/common-tasks:creating a general layer using the \`\`bitbake-layers\`\` script`"
+   section further down in this manual.
 
 Follow these general steps to create your layer without using tools:
 
@@ -234,11 +236,6 @@ following list:
 
          KERNEL_FEATURES:append:qemuall=" features/debug/printk.scc"
 
-      .. note::
-
-         Avoiding "+=" and "=+" and using machine-specific ``:append``
-         and ``:prepend`` operations is recommended as well.
-
    -  *Place Machine-Specific Files in Machine-Specific Locations:* When
       you have a base recipe, such as ``base-files.bb``, that contains a
       :term:`SRC_URI` statement to a
@@ -422,8 +419,9 @@ Before the OpenEmbedded build system can use your new layer, you need to
 enable it. To enable your layer, simply add your layer's path to the
 :term:`BBLAYERS` variable in your ``conf/bblayers.conf`` file, which is
 found in the :term:`Build Directory`.
-The following example shows how to enable a layer named
-``meta-mylayer``::
+The following example shows how to enable your new
+``meta-mylayer`` layer (note how your new layer exists outside of
+the official ``poky`` repository which you would have checked out earlier)::
 
    # POKY_BBLAYERS_CONF_VERSION is increased each time build/conf/bblayers.conf
    # changes incompatibly
@@ -434,7 +432,7 @@ The following example shows how to enable a layer named
        /home/user/poky/meta \
        /home/user/poky/meta-poky \
        /home/user/poky/meta-yocto-bsp \
-       /home/user/poky/meta-mylayer \
+       /home/user/mystuff/meta-mylayer \
        "
 
 BitBake parses each ``conf/layer.conf`` file from the top down as
@@ -553,6 +551,67 @@ The end result of this ``.bbappend`` file is that on a Raspberry Pi, where
 ``meta-raspberrypi/recipes-bsp/formfactor/formfactor/rpi/machconfig`` will be
 used during :ref:`ref-tasks-fetch` and the test for a non-zero file size in
 :ref:`ref-tasks-install` will return true, and the file will be installed.
+
+Installing Additional Files Using Your Layer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+As another example, consider the main ``xserver-xf86-config`` recipe and a
+corresponding ``xserver-xf86-config`` append file both from the :term:`Source
+Directory`.  Here is the main ``xserver-xf86-config`` recipe, which is named
+``xserver-xf86-config_0.1.bb`` and located in the "meta" layer at
+``meta/recipes-graphics/xorg-xserver``::
+
+   SUMMARY = "X.Org X server configuration file"
+   HOMEPAGE = "http://www.x.org"
+   SECTION = "x11/base"
+   LICENSE = "MIT-X"
+   LIC_FILES_CHKSUM = "file://${COREBASE}/meta/COPYING.MIT;md5=3da9cfbcb788c80a0384361b4de20420"
+   PR = "r33"
+
+   SRC_URI = "file://xorg.conf"
+
+   S = "${WORKDIR}"
+
+   CONFFILES:${PN} = "${sysconfdir}/X11/xorg.conf"
+
+   PACKAGE_ARCH = "${MACHINE_ARCH}"
+   ALLOW_EMPTY:${PN} = "1"
+
+   do_install () {
+	if test -s ${WORKDIR}/xorg.conf; then
+		install -d ${D}/${sysconfdir}/X11
+		install -m 0644 ${WORKDIR}/xorg.conf ${D}/${sysconfdir}/X11/
+	fi
+   }
+
+Following is the append file, which is named ``xserver-xf86-config_%.bbappend``
+and is from the Raspberry Pi BSP Layer named ``meta-raspberrypi``. The
+file is in the layer at ``recipes-graphics/xorg-xserver``::
+
+   FILESEXTRAPATHS:prepend := "${THISDIR}/${PN}:"
+
+   SRC_URI:append:rpi = " \
+       file://xorg.conf.d/98-pitft.conf \
+       file://xorg.conf.d/99-calibration.conf \
+   "
+   do_install:append:rpi () {
+       PITFT="${@bb.utils.contains("MACHINE_FEATURES", "pitft", "1", "0", d)}"
+       if [ "${PITFT}" = "1" ]; then
+           install -d ${D}/${sysconfdir}/X11/xorg.conf.d/
+           install -m 0644 ${WORKDIR}/xorg.conf.d/98-pitft.conf ${D}/${sysconfdir}/X11/xorg.conf.d/
+           install -m 0644 ${WORKDIR}/xorg.conf.d/99-calibration.conf ${D}/${sysconfdir}/X11/xorg.conf.d/
+       fi
+   }
+
+   FILES:${PN}:append:rpi = " ${sysconfdir}/X11/xorg.conf.d/*"
+
+Building off of the previous example, we once again are setting the
+:term:`FILESEXTRAPATHS` variable.  In this case we are also using
+:term:`SRC_URI` to list additional source files to use when ``rpi`` is found in
+the list of :term:`OVERRIDES`.  The :ref:`ref-tasks-install` task will then perform a
+check for an additional :term:`MACHINE_FEATURES` that if set will cause these
+additional files to be installed.  These additional files are listed in
+:term:`FILES` so that they will be packaged.
 
 Prioritizing Your Layer
 -----------------------
@@ -843,8 +902,8 @@ the :term:`IMAGE_INSTALL` variable with the ``:append`` operator::
 
    IMAGE_INSTALL:append = " strace"
 
-Use of the syntax is important -
-specifically, the space between the quote and the package name, which is
+Use of the syntax is important; specifically, the leading space
+after the opening quote and before the package name, which is
 ``strace`` in this example. This space is required since the ``:append``
 operator does not add the space.
 
@@ -881,7 +940,8 @@ a recipe and using :term:`EXTRA_IMAGE_FEATURES` from within your
 :term:`Build Directory`.
 
 To understand how these features work, the best reference is
-``meta/classes/image.bbclass``. This class lists out the available
+:ref:`meta/classes/image.bbclass <ref-classes-image>`.
+This class lists out the available
 :term:`IMAGE_FEATURES` of which most map to package groups while some, such
 as ``debug-tweaks`` and ``read-only-rootfs``, resolve as general
 configuration settings.
@@ -2056,7 +2116,7 @@ statement that essentially identifies itself as being able to provide
 
    PROVIDES += "${@ "virtual/kernel" if (d.getVar("KERNEL_PACKAGE_NAME") == "kernel") else "" }"
 
-Any recipe that inherits the ``kernel`` class is
+Any recipe that inherits the :ref:`kernel <ref-classes-kernel>` class is
 going to utilize a :term:`PROVIDES` statement that identifies that recipe as
 being able to provide the ``virtual/kernel`` item.
 
@@ -2064,7 +2124,7 @@ Now comes the time to actually build an image and you need a kernel
 recipe, but which one? You can configure your build to call out the
 kernel recipe you want by using the :term:`PREFERRED_PROVIDER` variable. As
 an example, consider the :yocto_git:`x86-base.inc
-</poky/tree/meta/conf/machine/include/x86-base.inc>` include file, which is a
+</poky/tree/meta/conf/machine/include/x86/x86-base.inc>` include file, which is a
 machine (i.e. :term:`MACHINE`) configuration file. This include file is the
 reason all x86-based machines use the ``linux-yocto`` kernel. Here are the
 relevant lines from the include file::
@@ -2183,12 +2243,13 @@ error during the
 
 If you have recipes that use ``pkg_postinst`` function and they require
 the use of non-standard native tools that have dependencies during
-rootfs construction, you need to use the
+root filesystem construction, you need to use the
 :term:`PACKAGE_WRITE_DEPS`
 variable in your recipe to list these tools. If you do not use this
 variable, the tools might be missing and execution of the
 post-installation script is deferred until first boot. Deferring the
-script to first boot is undesirable and for read-only rootfs impossible.
+script to the first boot is undesirable and impossible for read-only
+root filesystems.
 
 .. note::
 
@@ -2361,7 +2422,7 @@ into separate packages::
    require xorg-lib-common.inc
 
    SUMMARY = "Xpm: X Pixmap extension library"
-   LICENSE = "BSD"
+   LICENSE = "MIT"
    LIC_FILES_CHKSUM = "file://COPYING;md5=51f4270b012ecd4ab1a164f5f4ed6cf7"
    DEPENDS += "libxext libsm libxt"
    PE = "1"
@@ -2402,7 +2463,7 @@ sometimes you have no choice.
 The easiest solution is to create a recipe that uses the
 :ref:`bin_package <ref-classes-bin-package>` class
 and to be sure that you are using default locations for build artifacts.
-In most cases, the ``bin_package`` class handles "skipping" the
+In most cases, the :ref:`bin_package <ref-classes-bin-package>` class handles "skipping" the
 configure and compile steps as well as sets things up to grab packages
 from the appropriate area. In particular, this class sets ``noexec`` on
 both the :ref:`ref-tasks-configure`
@@ -2410,7 +2471,7 @@ and :ref:`ref-tasks-compile` tasks,
 sets ``FILES:${PN}`` to "/" so that it picks up all files, and sets up a
 :ref:`ref-tasks-install` task, which
 effectively copies all files from ``${S}`` to ``${D}``. The
-``bin_package`` class works well when the files extracted into ``${S}``
+:ref:`bin_package <ref-classes-bin-package>` class works well when the files extracted into ``${S}``
 are already laid out in the way they should be laid out on the target.
 For more information on these variables, see the
 :term:`FILES`,
@@ -2435,7 +2496,7 @@ Reference Manual's variable glossary.
       section in the Yocto Project Overview and Concepts Manual for more
       information.
 
-If you cannot use the ``bin_package`` class, you need to be sure you are
+If you cannot use the :ref:`bin_package <ref-classes-bin-package>` class, you need to be sure you are
 doing the following:
 
 -  Create a recipe where the
@@ -2475,7 +2536,7 @@ doing the following:
 
 .. note::
 
-  If image prelinking is enabled (e.g. "image-prelink" is in :term:`USER_CLASSES`
+  If image prelinking is enabled (e.g. :ref:`image-prelink <ref-classes-image-prelink>` is in :term:`USER_CLASSES`
   which it is by default), prelink will change the binaries in the generated images
   and this often catches people out. Remove that class to ensure binaries are
   preserved exactly if that is necessary.
@@ -3469,14 +3530,14 @@ terminal window.
    -  It is also worth noting that ``devshell`` still works over X11
       forwarding and similar situations.
 
-Using a Development Python Shell
+Using a Python Development Shell
 ================================
 
 Similar to working within a development shell as described in the
 previous section, you can also spawn and work within an interactive
 Python development shell. When debugging certain commands or even when
-just editing packages, ``devpyshell`` can be a useful tool. When you
-invoke ``devpyshell``, all tasks up to and including
+just editing packages, ``pydevshell`` can be a useful tool. When you
+invoke the ``pydevshell`` task, all tasks up to and including
 :ref:`ref-tasks-patch` are run for the
 specified target. Then a new terminal is opened. Additionally, key
 Python objects and code are available in the same way they are to
@@ -3486,7 +3547,7 @@ functions::
 
    pydevshell> d.getVar("STAGING_DIR")
    '/media/build1/poky/build/tmp/sysroots'
-   pydevshell> d.getVar("STAGING_DIR")
+   pydevshell> d.getVar("STAGING_DIR", False)
    '${TMPDIR}/sysroots'
    pydevshell> d.setVar("FOO", "bar")
    pydevshell> d.getVar("FOO")
@@ -3501,25 +3562,25 @@ system were executing them. Consequently, working this way can be
 helpful when debugging a build or preparing software to be used with the
 OpenEmbedded build system.
 
-Following is an example that uses ``devpyshell`` on a target named
+Following is an example that uses ``pydevshell`` on a target named
 ``matchbox-desktop``::
 
-   $ bitbake matchbox-desktop -c devpyshell
+   $ bitbake matchbox-desktop -c pydevshell
 
 This command spawns a terminal and places you in an interactive Python
 interpreter within the OpenEmbedded build environment. The
 :term:`OE_TERMINAL` variable
 controls what type of shell is opened.
 
-When you are finished using ``devpyshell``, you can exit the shell
+When you are finished using ``pydevshell``, you can exit the shell
 either by using Ctrl+d or closing the terminal window.
 
 Building
 ========
 
-This section describes various build procedures. For example, the steps
-needed for a simple build, a target that uses multiple configurations,
-building an image for more than one machine, and so forth.
+This section describes various build procedures, such as the steps
+needed for a simple build, building a target for multiple configurations,
+generating an image for more than one machine, and so forth.
 
 Building a Simple Image
 -----------------------
@@ -3575,8 +3636,10 @@ The following figure and list overviews the build process:
    .. note::
 
       A common practice is to use a different Build Directory for
-      different targets. For example, ``~/build/x86`` for a ``qemux86``
-      target, and ``~/build/arm`` for a ``qemuarm`` target.
+      different targets; for example, ``~/build/x86`` for a ``qemux86``
+      target, and ``~/build/arm`` for a ``qemuarm`` target. In any
+      event, it's typically cleaner to locate the build directory
+      somewhere outside of your source directory.
 
 3. *Make Sure Your* ``local.conf`` *File is Correct*: Ensure the
    ``conf/local.conf`` configuration file, which is found in the Build
@@ -3599,7 +3662,7 @@ The following figure and list overviews the build process:
    The target is the name of the recipe you want to build. Common
    targets are the images in ``meta/recipes-core/images``,
    ``meta/recipes-sato/images``, and so forth all found in the
-   :term:`Source Directory`. Or, the target
+   :term:`Source Directory`. Alternatively, the target
    can be the name of a recipe for a specific piece of software such as
    BusyBox. For more details about the images the OpenEmbedded build
    system supports, see the
@@ -3810,7 +3873,7 @@ Follow these steps to create an initramfs image:
 
    .. note::
 
-      It is recommended that you do bundle the initramfs image with the
+      It is recommended that you bundle the initramfs image with the
       kernel image to avoid circular dependencies between the kernel
       recipe and the initramfs recipe should the initramfs image include
       kernel modules.
@@ -3821,6 +3884,12 @@ Follow these steps to create an initramfs image:
    :term:`CONFIG_INITRAMFS_SOURCE`
    variable, allowing the initramfs image to be built into the kernel
    normally.
+
+   .. note::
+
+      Bundling the initramfs with the kernel conflates the code in the initramfs
+      with the GPLv2 licensed Linux kernel binary. Thus only GPLv2 compatible
+      software may be part of a bundled initramfs.
 
    .. note::
 
@@ -4389,19 +4458,16 @@ Follow these steps to build your target using the files in the downloads
 directory:
 
 1. *Using Local Files Only:* Inside your ``local.conf`` file, add the
-   :term:`SOURCE_MIRROR_URL`
-   variable, inherit the
-   :ref:`own-mirrors <ref-classes-own-mirrors>`
-   class, and use the
-   :term:`BB_NO_NETWORK`
-   variable to your ``local.conf``.
+   :term:`SOURCE_MIRROR_URL` variable, inherit the
+   :ref:`own-mirrors <ref-classes-own-mirrors>` class, and use the
+   :term:`BB_NO_NETWORK` variable to your ``local.conf``.
    ::
 
       SOURCE_MIRROR_URL ?= "file:///home/your-download-dir/"
       INHERIT += "own-mirrors"
       BB_NO_NETWORK = "1"
 
-   The :term:`SOURCE_MIRROR_URL` and ``own-mirror``
+   The :term:`SOURCE_MIRROR_URL` and :ref:`own-mirrors <ref-classes-own-mirrors>`
    class set up the system to use the downloads directory as your "own
    mirror". Using the :term:`BB_NO_NETWORK` variable makes sure that
    BitBake's fetching process in step 3 stays local, which means files
@@ -4430,7 +4496,7 @@ directory:
          SRCREV = "${AUTOREV}"
 
       When a recipe sets :term:`SRCREV` to
-      ``${AUTOREV}``, the build system accesses the network in an
+      ``${``\ :term:`AUTOREV`\ ``}``, the build system accesses the network in an
       attempt to determine the latest version of software from the SCM.
       Typically, recipes that use :term:`AUTOREV` are custom or modified
       recipes. Recipes that reside in public repositories usually do not
@@ -4602,7 +4668,7 @@ Following is part of the BitBake configuration file, where you can see
 how the static library files are defined::
 
    PACKAGE_BEFORE_PN ?= ""
-   PACKAGES = "${PN}-dbg ${PN}-staticdev ${PN}-dev ${PN}-doc ${PN}-locale ${PACKAGE_BEFORE_PN} ${PN}"
+   PACKAGES = "${PN}-src ${PN}-dbg ${PN}-staticdev ${PN}-dev ${PN}-doc ${PN}-locale ${PACKAGE_BEFORE_PN} ${PN}"
    PACKAGES_DYNAMIC = "^${PN}-locale-.*"
    FILES = ""
 
@@ -4610,7 +4676,8 @@ how the static library files are defined::
                ${sysconfdir} ${sharedstatedir} ${localstatedir} \
                ${base_bindir}/* ${base_sbindir}/* \
                ${base_libdir}/*${SOLIBS} \
-               ${base_prefix}/lib/udev/rules.d ${prefix}/lib/udev/rules.d \
+               ${base_prefix}/lib/udev ${prefix}/lib/udev \
+               ${base_libdir}/udev ${libdir}/udev \
                ${datadir}/${BPN} ${libdir}/${BPN}/* \
                ${datadir}/pixmaps ${datadir}/applications \
                ${datadir}/idl ${datadir}/omf ${datadir}/sounds \
@@ -4626,7 +4693,8 @@ how the static library files are defined::
    FILES:${PN}-dev = "${includedir} ${FILES_SOLIBSDEV} ${libdir}/*.la \
                    ${libdir}/*.o ${libdir}/pkgconfig ${datadir}/pkgconfig \
                    ${datadir}/aclocal ${base_libdir}/*.o \
-                   ${libdir}/${BPN}/*.la ${base_libdir}/*.la"
+                   ${libdir}/${BPN}/*.la ${base_libdir}/*.la \
+                   ${libdir}/cmake ${datadir}/cmake"
    SECTION:${PN}-dev = "devel"
    ALLOW_EMPTY:${PN}-dev = "1"
    RDEPENDS:${PN}-dev = "${PN} (= ${EXTENDPKGV})"
@@ -4660,11 +4728,14 @@ optimizations.
 There are several examples in the ``meta-skeleton`` layer found in the
 :term:`Source Directory`:
 
--  ``conf/multilib-example.conf`` configuration file
+-  :oe_git:`conf/multilib-example.conf </openembedded-core/tree/meta-skeleton/conf/multilib-example.conf>`
+   configuration file.
 
--  ``conf/multilib-example2.conf`` configuration file
+-  :oe_git:`conf/multilib-example2.conf </openembedded-core/tree/meta-skeleton/conf/multilib-example2.conf>`
+   configuration file.
 
--  ``recipes-multilib/images/core-image-multilib-example.bb`` recipe
+-  :oe_git:`recipes-multilib/images/core-image-multilib-example.bb </openembedded-core/tree/meta-skeleton/recipes-multilib/images/core-image-multilib-example.bb>`
+   recipe
 
 Preparing to Use Multilib
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -4683,7 +4754,8 @@ done using the
 Eventually, all recipes will be covered and this list will not be
 needed.
 
-For the most part, the Multilib class extension works automatically to
+For the most part, the :ref:`Multilib <ref-classes-multilib*>`
+class extension works automatically to
 extend the package name from ``${PN}`` to ``${MLPREFIX}${PN}``, where
 :term:`MLPREFIX` is the particular multilib (e.g. "lib32-" or "lib64-").
 Standard variables such as
@@ -4695,8 +4767,7 @@ Standard variables such as
 :term:`PACKAGES_DYNAMIC` are
 automatically extended by the system. If you are extending any manual
 code in the recipe, you can use the ``${MLPREFIX}`` variable to ensure
-those names are extended correctly. This automatic extension code
-resides in ``multilib.bbclass``.
+those names are extended correctly.
 
 Using Multilib
 ~~~~~~~~~~~~~~
@@ -4878,8 +4949,7 @@ the x32 psABI. Here is an example::
 Enabling GObject Introspection Support
 ======================================
 
-`GObject
-introspection <https://wiki.gnome.org/Projects/GObjectIntrospection>`__
+`GObject introspection <https://gi.readthedocs.io/en/latest/>`__
 is the standard mechanism for accessing GObject-based software from
 runtime environments. GObject is a feature of the GLib library that
 provides an object framework for the GNOME desktop and related software.
@@ -4891,7 +4961,7 @@ introspection is the only way to do it.
 
 This section describes the Yocto Project support for generating and
 packaging GObject introspection data. GObject introspection data is a
-description of the API provided by libraries built on top of GLib
+description of the API provided by libraries built on top of the GLib
 framework, and, in particular, that framework's GObject mechanism.
 GObject Introspection Repository (GIR) files go to ``-dev`` packages,
 ``typelib`` files go to main packages as they are packaged together with
@@ -4937,7 +5007,7 @@ library package involves the following:
    .. note::
 
       See recipes in the ``oe-core`` repository that use that
-      ``GIR_EXTRA_LIBS_PATH`` variable as an example.
+      :term:`GIR_EXTRA_LIBS_PATH` variable as an example.
 
 4. Look for any other errors, which probably mean that introspection
    support in a package is not entirely standard, and thus breaks down
@@ -5197,17 +5267,19 @@ command to return the available Wic images as follows::
 
    $ wic list images
      genericx86                    		Create an EFI disk image for genericx86*
-     beaglebone-yocto              		Create SD card image for Beaglebone
      edgerouter                    		Create SD card image for Edgerouter
-     qemux86-directdisk            		Create a QEMU machine 'pcbios' direct disk image
-     directdisk-gpt                		Create a 'pcbios' direct disk image
-     mkefidisk                     		Create an EFI disk image
-     directdisk                    		Create a 'pcbios' direct disk image
+     beaglebone-yocto              		Create SD card image for Beaglebone
+     qemux86-directdisk            		Create a qemu machine 'pcbios' direct disk image
      systemd-bootdisk              		Create an EFI disk image with systemd-boot
      mkhybridiso                   		Create a hybrid ISO image
+     mkefidisk                     		Create an EFI disk image
      sdimage-bootpart              		Create SD card image with a boot partition
      directdisk-multi-rootfs       		Create multi rootfs image using rootfs plugin
+     directdisk                    		Create a 'pcbios' direct disk image
      directdisk-bootloader-config  		Create a 'pcbios' direct disk image with custom bootloader config
+     qemuriscv                     		Create qcow2 image for RISC-V QEMU machines
+     directdisk-gpt                		Create a 'pcbios' direct disk image
+     efi-bootdisk
 
 Once you know the list of available
 Wic images, you can use ``help`` with the command to get help on a
@@ -5530,13 +5602,13 @@ file::
      ./mkefidisk-201804191017-sda.direct
 
    The following build artifacts were used to create the image(s):
-     ROOTFS_DIR:                   /home/stephano/build/master/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/rootfs
-     BOOTIMG_DIR:                  /home/stephano/build/master/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/recipe-sysroot/usr/share
-     KERNEL_DIR:                   /home/stephano/build/master/build/tmp-glibc/deploy/images/qemux86
-     NATIVE_SYSROOT:               /home/stephano/build/master/build/tmp-glibc/work/i586-oe-linux/wic-tools/1.0-r0/recipe-sysroot-native
+     ROOTFS_DIR:                   /home/stephano/yocto/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/rootfs
+     BOOTIMG_DIR:                  /home/stephano/yocto/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/recipe-sysroot/usr/share
+     KERNEL_DIR:                   /home/stephano/yocto/build/tmp-glibc/deploy/images/qemux86
+     NATIVE_SYSROOT:               /home/stephano/yocto/build/tmp-glibc/work/i586-oe-linux/wic-tools/1.0-r0/recipe-sysroot-native
 
    INFO: The image(s) were created using OE kickstart file:
-     /home/stephano/build/master/openembedded-core/scripts/lib/wic/canned-wks/mkefidisk.wks
+     /home/stephano/yocto/openembedded-core/scripts/lib/wic/canned-wks/mkefidisk.wks
 
 The previous example shows the easiest way to create an image by running
 in cooked mode and supplying a kickstart file and the "-e" option to
@@ -5597,8 +5669,8 @@ in the ``scripts/lib/image/canned-wks`` directory and then by changing
 the lines that specify the target disk from which to boot.
 ::
 
-   $ cp /home/stephano/poky/scripts/lib/wic/canned-wks/directdisk-gpt.wks \
-        /home/stephano/poky/scripts/lib/wic/canned-wks/directdisksdb-gpt.wks
+   $ cp /home/stephano/yocto/poky/scripts/lib/wic/canned-wks/directdisk-gpt.wks \
+        /home/stephano/yocto/poky/scripts/lib/wic/canned-wks/directdisksdb-gpt.wks
 
 Next, the example modifies the ``directdisksdb-gpt.wks`` file and
 changes all instances of "``--ondisk sda``" to "``--ondisk sdb``". The
@@ -5630,13 +5702,13 @@ Computing (nuc) :term:`MACHINE` the
      ./directdisksdb-gpt-201710090938-sdb.direct
 
    The following build artifacts were used to create the image(s):
-     ROOTFS_DIR:                   /home/stephano/build/master/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/rootfs
-     BOOTIMG_DIR:                  /home/stephano/build/master/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/recipe-sysroot/usr/share
-     KERNEL_DIR:                   /home/stephano/build/master/build/tmp-glibc/deploy/images/qemux86
-     NATIVE_SYSROOT:               /home/stephano/build/master/build/tmp-glibc/work/i586-oe-linux/wic-tools/1.0-r0/recipe-sysroot-native
+     ROOTFS_DIR:                   /home/stephano/yocto/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/rootfs
+     BOOTIMG_DIR:                  /home/stephano/yocto/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/recipe-sysroot/usr/share
+     KERNEL_DIR:                   /home/stephano/yocto/build/tmp-glibc/deploy/images/qemux86
+     NATIVE_SYSROOT:               /home/stephano/yocto/build/tmp-glibc/work/i586-oe-linux/wic-tools/1.0-r0/recipe-sysroot-native
 
    INFO: The image(s) were created using OE kickstart file:
-     /home/stephano/poky/scripts/lib/wic/canned-wks/directdisksdb-gpt.wks
+     /home/stephano/yocto/poky/scripts/lib/wic/canned-wks/directdisksdb-gpt.wks
 
 Continuing with the example, you can now directly ``dd`` the image to a
 USB stick, or whatever media for which you built your image, and boot
@@ -5656,11 +5728,11 @@ Mode) and uses a modified kickstart file. The example also uses the
 ``-o`` option to cause Wic to create the output somewhere other than the
 default output directory, which is the current directory::
 
-   $ wic create /home/stephano/my_yocto/test.wks -o /home/stephano/testwic \
-        --rootfs-dir /home/stephano/build/master/build/tmp/work/qemux86-poky-linux/core-image-minimal/1.0-r0/rootfs \
-        --bootimg-dir /home/stephano/build/master/build/tmp/work/qemux86-poky-linux/core-image-minimal/1.0-r0/recipe-sysroot/usr/share \
-        --kernel-dir /home/stephano/build/master/build/tmp/deploy/images/qemux86 \
-        --native-sysroot /home/stephano/build/master/build/tmp/work/i586-poky-linux/wic-tools/1.0-r0/recipe-sysroot-native
+   $ wic create test.wks -o /home/stephano/testwic \
+        --rootfs-dir /home/stephano/yocto/build/tmp/work/qemux86-poky-linux/core-image-minimal/1.0-r0/rootfs \
+        --bootimg-dir /home/stephano/yocto/build/tmp/work/qemux86-poky-linux/core-image-minimal/1.0-r0/recipe-sysroot/usr/share \
+        --kernel-dir /home/stephano/yocto/build/tmp/deploy/images/qemux86 \
+        --native-sysroot /home/stephano/yocto/build/tmp/work/i586-poky-linux/wic-tools/1.0-r0/recipe-sysroot-native
 
    INFO: Creating image(s)...
 
@@ -5668,13 +5740,13 @@ default output directory, which is the current directory::
      /home/stephano/testwic/test-201710091445-sdb.direct
 
    The following build artifacts were used to create the image(s):
-     ROOTFS_DIR:                   /home/stephano/build/master/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/rootfs
-     BOOTIMG_DIR:                  /home/stephano/build/master/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/recipe-sysroot/usr/share
-     KERNEL_DIR:                   /home/stephano/build/master/build/tmp-glibc/deploy/images/qemux86
-     NATIVE_SYSROOT:               /home/stephano/build/master/build/tmp-glibc/work/i586-oe-linux/wic-tools/1.0-r0/recipe-sysroot-native
+     ROOTFS_DIR:                   /home/stephano/yocto/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/rootfs
+     BOOTIMG_DIR:                  /home/stephano/yocto/build/tmp-glibc/work/qemux86-oe-linux/core-image-minimal/1.0-r0/recipe-sysroot/usr/share
+     KERNEL_DIR:                   /home/stephano/yocto/build/tmp-glibc/deploy/images/qemux86
+     NATIVE_SYSROOT:               /home/stephano/yocto/build/tmp-glibc/work/i586-oe-linux/wic-tools/1.0-r0/recipe-sysroot-native
 
    INFO: The image(s) were created using OE kickstart file:
-     /home/stephano/my_yocto/test.wks
+     test.wks
 
 For this example,
 :term:`MACHINE` did not have to be
@@ -5802,7 +5874,7 @@ system image files much faster.
       use the tool without specifying ``PATH`` even from the root
       account::
 
-         $ sudo apt-get install bmap-tools
+         $ sudo apt install bmap-tools
 
    -  If you are unable to install the ``bmap-tools`` package, you will
       need to build Bmaptool before using it. Use the following command::
@@ -6170,8 +6242,11 @@ Changing the listed common targets is as easy as editing your version of
 ``conf-notes.txt`` in your custom template configuration directory and
 making sure you have ``TEMPLATECONF`` set to your directory.
 
+Conserving Disk Space
+=====================
+
 Conserving Disk Space During Builds
-===================================
+-----------------------------------
 
 To help conserve disk space during builds, you can add the following
 statement to your project's ``local.conf`` configuration file found in
@@ -6184,6 +6259,26 @@ building a recipe once the recipe is built. For more information on
 "rm_work", see the
 :ref:`rm_work <ref-classes-rm-work>` class in the
 Yocto Project Reference Manual.
+
+Purging Duplicate Shared State Cache Files
+-------------------------------------------
+
+After multiple build iterations, the Shared State (sstate) cache can contain
+duplicate cache files for a given package, while only the most recent one
+is likely to be reusable. The following command purges all but the
+newest sstate cache file for each package::
+
+   sstate-cache-management.sh --remove-duplicated --cache-dir=build/sstate-cache
+
+This command will ask you to confirm the deletions it identifies.
+
+Note::
+
+   The duplicated sstate cache files of one package must have the same
+   architecture, which means that sstate cache files with multiple
+   architectures are not considered as duplicate.
+
+Run ``sstate-cache-management.sh`` for more details about this script.
 
 Working with Packages
 =====================
@@ -6994,7 +7089,7 @@ to fetch the repository information:
 
 .. code-block:: none
 
-  # apt-get update
+  $ sudo apt update
 
 After this step,
 ``apt`` is able to find, install, and upgrade packages from the
@@ -7006,7 +7101,7 @@ Generating and Using Signed Packages
 In order to add security to RPM packages used during a build, you can
 take steps to securely sign them. Once a signature is verified, the
 OpenEmbedded build system can use the package in the build. If security
-fails for a signed package, the build system aborts the build.
+fails for a signed package, the build system stops the build.
 
 This section describes how to sign RPM packages during a build and how
 to use signed package feeds (repositories) when doing a build.
@@ -7571,7 +7666,7 @@ Selecting a Device Manager
 The Yocto Project provides multiple ways to manage the device manager
 (``/dev``):
 
--  Persistent and Pre-Populated\ ``/dev``: For this case, the ``/dev``
+-  Persistent and Pre-Populated ``/dev``: For this case, the ``/dev``
    directory is persistent and the required device nodes are created
    during the build.
 
@@ -7581,7 +7676,7 @@ The Yocto Project provides multiple ways to manage the device manager
    configuration of device nodes is done in user space by a device
    manager like ``udev`` or ``busybox-mdev``.
 
-Using Persistent and Pre-Populated\ ``/dev``
+Using Persistent and Pre-Populated ``/dev``
 --------------------------------------------
 
 To use the static method for device population, you need to set the
@@ -8177,7 +8272,7 @@ might be significant in human-readable form. Here is an example::
 
 
    Alternatively, you can install ``python3-git`` using the appropriate
-   distribution package manager (e.g. ``apt-get``, ``dnf``, or ``zipper``).
+   distribution package manager (e.g. ``apt``, ``dnf``, or ``zipper``).
 
 To see changes to the build history using a web interface, follow the
 instruction in the ``README`` file
@@ -8301,11 +8396,11 @@ The OpenEmbedded build system can run tests on real hardware, and for
 certain devices it can also deploy the image to be tested onto the
 device beforehand.
 
-For automated deployment, a "master image" is installed onto the
+For automated deployment, a "controller image" is installed onto the
 hardware once as part of setup. Then, each time tests are to be run, the
 following occurs:
 
-1. The master image is booted into and used to write the image to be
+1. The controller image is booted into and used to write the image to be
    tested to a second partition.
 
 2. The device is then rebooted using an external script that you need to
@@ -8374,15 +8469,15 @@ not need any information in this section. You can skip down to the
 ":ref:`dev-manual/common-tasks:running tests`" section.
 
 If you did set :term:`TEST_TARGET` to "SystemdbootTarget", you also need to
-perform a one-time setup of your master image by doing the following:
+perform a one-time setup of your controller image by doing the following:
 
 1. *Set EFI_PROVIDER:* Be sure that :term:`EFI_PROVIDER` is as follows::
 
       EFI_PROVIDER = "systemd-boot"
 
-2. *Build the master image:* Build the ``core-image-testmaster`` image.
+2. *Build the controller image:* Build the ``core-image-testmaster`` image.
    The ``core-image-testmaster`` recipe is provided as an example for a
-   "master" image and you can customize the image recipe as you would
+   "controller" image and you can customize the image recipe as you would
    any other recipe.
 
    Here are the image recipe requirements:
@@ -8394,14 +8489,14 @@ perform a one-time setup of your master image by doing the following:
 
    -  Uses a custom Initial RAM Disk (initramfs) image with a custom
       installer. A normal image that you can install usually creates a
-      single rootfs partition. This image uses another installer that
+      single root filesystem partition. This image uses another installer that
       creates a specific partition layout. Not all Board Support
       Packages (BSPs) can use an installer. For such cases, you need to
       manually create the following partition layout on the target:
 
       -  First partition mounted under ``/boot``, labeled "boot".
 
-      -  The main rootfs partition where this image gets installed,
+      -  The main root filesystem partition where this image gets installed,
          which is mounted under ``/``.
 
       -  Another partition labeled "testrootfs" where test images get
@@ -9381,8 +9476,8 @@ log to ``${T}/log.do_``\ `task`, and can also log to standard output
 
       Calling this function does not cause the task to fail.
 
--  ``bb.fatal(``\ msg\ ``)``: This logging function is similar to
-   ``bb.error(``\ msg\ ``)`` but also causes the calling task to fail.
+-  ``bb.fatal(msg)``: This logging function is similar to
+   ``bb.error(msg)`` but also causes the calling task to fail.
 
    .. note::
 
@@ -9497,51 +9592,51 @@ If you examine the output or the log file, you see the failure during
    | /bin/mkdir -p include/near
    | /bin/mkdir -p include/near
    | /bin/mkdir -p include/near
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/types.h include/near/types.h
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/log.h include/near/log.h
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/plugin.h include/near/plugin.h
    | /bin/mkdir -p include/near
    | /bin/mkdir -p include/near
    | /bin/mkdir -p include/near
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/tag.h include/near/tag.h
    | /bin/mkdir -p include/near
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/adapter.h include/near/adapter.h
    | /bin/mkdir -p include/near
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/ndef.h include/near/ndef.h
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/tlv.h include/near/tlv.h
    | /bin/mkdir -p include/near
    | /bin/mkdir -p include/near
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/setting.h include/near/setting.h
    | /bin/mkdir -p include/near
    | /bin/mkdir -p include/near
    | /bin/mkdir -p include/near
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/device.h include/near/device.h
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/nfc_copy.h include/near/nfc_copy.h
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/snep.h include/near/snep.h
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/version.h include/near/version.h
-   | ln -s /home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
+   | ln -s /home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/work/i586-poky-linux/neard/
      0.14-r0/neard-0.14/include/dbus.h include/near/dbus.h
    | ./src/genbuiltin nfctype1 nfctype2 nfctype3 nfctype4 p2p > src/builtin.h
-   | i586-poky-linux-gcc  -m32 -march=i586 --sysroot=/home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/
+   | i586-poky-linux-gcc  -m32 -march=i586 --sysroot=/home/pokybuild/yocto-autobuilder/nightly-x86/
      build/build/tmp/sysroots/qemux86 -DHAVE_CONFIG_H -I. -I./include -I./src -I./gdbus  -I/home/pokybuild/
-     yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/sysroots/qemux86/usr/include/glib-2.0
-     -I/home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/tmp/sysroots/qemux86/usr/
-     lib/glib-2.0/include  -I/home/pokybuild/yocto-autobuilder/yocto-slave/nightly-x86/build/build/
-     tmp/sysroots/qemux86/usr/include/dbus-1.0 -I/home/pokybuild/yocto-autobuilder/yocto-slave/
+     yocto-autobuilder/nightly-x86/build/build/tmp/sysroots/qemux86/usr/include/glib-2.0
+     -I/home/pokybuild/yocto-autobuilder/nightly-x86/build/build/tmp/sysroots/qemux86/usr/
+     lib/glib-2.0/include  -I/home/pokybuild/yocto-autobuilder/nightly-x86/build/build/
+     tmp/sysroots/qemux86/usr/include/dbus-1.0 -I/home/pokybuild/yocto-autobuilder/
      nightly-x86/build/build/tmp/sysroots/qemux86/usr/lib/dbus-1.0/include  -I/home/pokybuild/yocto-autobuilder/
-     yocto-slave/nightly-x86/build/build/tmp/sysroots/qemux86/usr/include/libnl3
+     nightly-x86/build/build/tmp/sysroots/qemux86/usr/include/libnl3
      -DNEAR_PLUGIN_BUILTIN -DPLUGINDIR=\""/usr/lib/near/plugins"\"
      -DCONFIGDIR=\""/etc/neard\"" -O2 -pipe -g -feliminate-unused-debug-types -c
      -o tools/snep-send.o tools/snep-send.c
@@ -10478,7 +10573,7 @@ been followed:
    and email address. In this example, the email address is a mailing
    list::
 
-      $ poky/scripts/send-pull-request -p ~/meta-intel/pull-10565 -t meta-intel@yoctoproject.org
+      $ poky/scripts/send-pull-request -p ~/meta-intel/pull-10565 -t meta-intel@lists.yoctoproject.org
 
    You need to follow the prompts as the script is interactive.
 
@@ -10719,12 +10814,12 @@ package::
    LICENSE_FLAGS_WHITELIST = "commercial_gst-plugins-ugly license_emgd_1.10"
 
 As a convenience, you do not need to specify the
-complete license string in the whitelist for every package. You can use
+complete license string for every package. You can use
 an abbreviated form, which consists of just the first portion or
 portions of the license string before the initial underscore character
 or characters. A partial string will match any license that contains the
 given string as the first portion of its license. For example, the
-following whitelist string will also match both of the packages
+following value will also match both of the packages
 previously mentioned as well as any other packages that have licenses
 starting with "commercial" or "license".
 ::
@@ -10737,8 +10832,8 @@ License Flag Matching
 License flag matching allows you to control what recipes the
 OpenEmbedded build system includes in the build. Fundamentally, the
 build system attempts to match :term:`LICENSE_FLAGS` strings found in
-recipes against :term:`LICENSE_FLAGS_WHITELIST` strings found in the
-whitelist. A match causes the build system to include a recipe in the
+recipes against strings found in :term:`LICENSE_FLAGS_WHITELIST`.
+A match causes the build system to include a recipe in the
 build, while failure to find a match causes the build system to exclude
 a recipe.
 
@@ -10746,18 +10841,19 @@ In general, license flag matching is simple. However, understanding some
 concepts will help you correctly and effectively use matching.
 
 Before a flag defined by a particular recipe is tested against the
-contents of the whitelist, the expanded string ``_${PN}`` is appended to
-the flag. This expansion makes each :term:`LICENSE_FLAGS` value
-recipe-specific. After expansion, the string is then matched against the
-whitelist. Thus, specifying ``LICENSE_FLAGS = "commercial"`` in recipe
-"foo", for example, results in the string ``"commercial_foo"``. And, to
-create a match, that string must appear in the whitelist.
+entries of :term:`LICENSE_FLAGS_WHITELIST`, the expanded
+string ``_${PN}`` is appended to the flag. This expansion makes each
+:term:`LICENSE_FLAGS` value recipe-specific. After expansion, the
+string is then matched against the entries. Thus, specifying
+``LICENSE_FLAGS = "commercial"`` in recipe "foo", for example, results
+in the string ``"commercial_foo"``. And, to create a match, that string
+must appear among the entries of :term:`LICENSE_FLAGS_WHITELIST`.
 
 Judicious use of the :term:`LICENSE_FLAGS` strings and the contents of the
 :term:`LICENSE_FLAGS_WHITELIST` variable allows you a lot of flexibility for
 including or excluding recipes based on licensing. For example, you can
 broaden the matching capabilities by using license flags string subsets
-in the whitelist.
+in :term:`LICENSE_FLAGS_WHITELIST`.
 
 .. note::
 
@@ -10765,43 +10861,44 @@ in the whitelist.
    string that precedes the appended underscore character (e.g.
    ``usethispart_1.3``, ``usethispart_1.4``, and so forth).
 
-For example, simply specifying the string "commercial" in the whitelist
-matches any expanded :term:`LICENSE_FLAGS` definition that starts with the
-string "commercial" such as "commercial_foo" and "commercial_bar", which
+For example, simply specifying the string "commercial" in the
+:term:`LICENSE_FLAGS_WHITELIST` variable matches any expanded
+:term:`LICENSE_FLAGS` definition that starts with the string
+"commercial" such as "commercial_foo" and "commercial_bar", which
 are the strings the build system automatically generates for
 hypothetical recipes named "foo" and "bar" assuming those recipes simply
 specify the following::
 
    LICENSE_FLAGS = "commercial"
 
-Thus, you can choose
-to exhaustively enumerate each license flag in the whitelist and allow
-only specific recipes into the image, or you can use a string subset
-that causes a broader range of matches to allow a range of recipes into
-the image.
+Thus, you can choose to exhaustively enumerate each license flag in the
+list and allow only specific recipes into the image, or you can use a
+string subset that causes a broader range of matches to allow a range of
+recipes into the image.
 
 This scheme works even if the :term:`LICENSE_FLAGS` string already has
 ``_${PN}`` appended. For example, the build system turns the license
 flag "commercial_1.2_foo" into "commercial_1.2_foo_foo" and would match
 both the general "commercial" and the specific "commercial_1.2_foo"
-strings found in the whitelist, as expected.
+strings found in the :term:`LICENSE_FLAGS_WHITELIST` variable, as expected.
 
 Here are some other scenarios:
 
 -  You can specify a versioned string in the recipe such as
    "commercial_foo_1.2" in a "foo" recipe. The build system expands this
    string to "commercial_foo_1.2_foo". Combine this license flag with a
-   whitelist that has the string "commercial" and you match the flag
-   along with any other flag that starts with the string "commercial".
+   :term:`LICENSE_FLAGS_WHITELIST` variable that has the string
+   "commercial" and you match the flag along with any other flag that
+   starts with the string "commercial".
 
--  Under the same circumstances, you can use "commercial_foo" in the
-   whitelist and the build system not only matches "commercial_foo_1.2"
-   but also matches any license flag with the string "commercial_foo",
-   regardless of the version.
+-  Under the same circumstances, you can add "commercial_foo" in the
+   :term:`LICENSE_FLAGS_WHITELIST` variable and the build system not only
+   matches "commercial_foo_1.2" but also matches any license flag with
+   the string "commercial_foo", regardless of the version.
 
 -  You can be very specific and use both the package and version parts
-   in the whitelist (e.g. "commercial_foo_1.2") to specifically match a
-   versioned recipe.
+   in the :term:`LICENSE_FLAGS_WHITELIST` list (e.g.
+   "commercial_foo_1.2") to specifically match a versioned recipe.
 
 Other Variables Related to Commercial Licenses
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -10825,9 +10922,10 @@ file::
    LICENSE_FLAGS_WHITELIST = "commercial_gst-plugins-ugly commercial_gst-plugins-bad commercial_qmmp"
 
 
-Of course, you could also create a matching whitelist for those
-components using the more general "commercial" in the whitelist, but
-that would also enable all the other packages with :term:`LICENSE_FLAGS`
+Of course, you could also create a matching list for those
+components using the more general "commercial" in the
+:term:`LICENSE_FLAGS_WHITELIST` variable, but that would also enable all
+the other packages with :term:`LICENSE_FLAGS`
 containing "commercial", which you may or may not want::
 
    LICENSE_FLAGS_WHITELIST = "commercial"
@@ -10900,7 +10998,7 @@ accidental release of proprietary software. The Yocto Project provides
 an :ref:`archiver <ref-classes-archiver>` class to
 help avoid some of these concerns.
 
-Before you employ :term:`DL_DIR` or the ``archiver`` class, you need to
+Before you employ :term:`DL_DIR` or the :ref:`archiver <ref-classes-archiver>` class, you need to
 decide how you choose to provide source. The source ``archiver`` class
 can generate tarballs and SRPMs and can create them with various levels
 of compliance in mind.
@@ -11086,9 +11184,29 @@ this function, you have to follow the following steps:
 For more usage information refer to :yocto_git:`the meta-spdxscanner repository
 </meta-spdxscanner/>`.
 
+Compliance Limitations with Executables Built from Static Libraries
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Copying Licenses that Do Not Exist
-----------------------------------
+When package A is added to an image via the :term:`RDEPENDS` or :term:`RRECOMMENDS`
+mechanisms as well as explicitly included in the image recipe with
+:term:`IMAGE_INSTALL`, and depends on a static linked library recipe B
+(``DEPENDS += "B"``), package B will neither appear in the generated license
+manifest nor in the generated source tarballs.  This occurs as the
+:ref:`license <ref-classes-license>` and :ref:`archiver <ref-classes-archiver>`
+classes assume that only packages included via :term:`RDEPENDS` or :term:`RRECOMMENDS`
+end up in the image.
+
+As a result, potential obligations regarding license compliance for package B
+may not be met.
+
+The Yocto Project doesn't enable static libraries by default, in part because
+of this issue. Before a solution to this limitation is found, you need to
+keep in mind that if your root filesystem is built from static libraries,
+you will need to manually ensure that your deliveries are compliant
+with the licenses of these libraries.
+
+Copying Non Standard Licenses
+-----------------------------
 
 Some packages, such as the linux-firmware package, have many licenses
 that are not in any way common. You can avoid adding a lot of these

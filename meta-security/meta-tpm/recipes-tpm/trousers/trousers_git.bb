@@ -1,5 +1,5 @@
 SUMMARY = "TrouSerS - An open-source TCG Software Stack implementation."
-LICENSE = "BSD"
+LICENSE = "BSD-3-Clause"
 HOMEPAGE = "http://sourceforge.net/projects/trousers/"
 LIC_FILES_CHKSUM = "file://README;startline=3;endline=4;md5=2af28fbed0832e4d83a9e6dd68bb4413"
 SECTION = "security/tpm"
@@ -10,7 +10,7 @@ SRCREV = "94144b0a1dcef6e31845d6c319e9bd7357208eb9"
 PV = "0.3.15+git${SRCPV}"
 
 SRC_URI = " \
-	git://git.code.sf.net/p/trousers/trousers \
+	git://git.code.sf.net/p/trousers/trousers;branch=master \
     	file://trousers.init.sh \
     	file://trousers-udev.rules \
     	file://tcsd.service \

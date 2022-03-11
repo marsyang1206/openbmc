@@ -5,7 +5,7 @@ require conf/image-uefi.conf
 GRUBPLATFORM = "efi"
 
 DEPENDS:append = " grub-native"
-RDEPENDS:${PN} = "grub-common virtual/grub-bootconf"
+RDEPENDS:${PN} = "grub-common virtual-grub-bootconf"
 
 SRC_URI += " \
            file://cfg \
@@ -72,6 +72,9 @@ do_install() {
 
 GRUB_BUILDIN ?= "boot linux ext2 fat serial part_msdos part_gpt normal \
                  efi_gop iso9660 configfile search loadenv test"
+
+# 'xen_boot' is a module valid only for aarch64
+GRUB_BUILDIN:append:aarch64 = "${@bb.utils.contains('DISTRO_FEATURES', 'xen', ' xen_boot', '', d)}"
 
 do_deploy() {
 	install -m 644 ${B}/${GRUB_IMAGE_PREFIX}${GRUB_IMAGE} ${DEPLOYDIR}

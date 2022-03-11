@@ -34,26 +34,21 @@ Manual Organization
 
 Here the folders corresponding to individual manuals:
 
-* sdk-manual           - The Yocto Project Software Development Kit (SDK) Developer's Guide.
-* bsp-guide            - The Yocto Project Board Support Package (BSP) Developer's Guide
-* dev-manual           - The Yocto Project Development Tasks Manual
-* kernel-dev           - The Yocto Project Linux Kernel Development Tasks Manual
-* ref-manual           - The Yocto Project Reference Manual
-* brief-yoctoprojectqs - The Yocto Project Quick Start
-* profile-manual       - The Yocto Project Profile and Tracing Manual
-* toaster-manual       - The Toaster Manual
-* test-manual          - The Test Environment Manual
+* overview-manual      - Yocto Project Overview and Concepts Manual
+* sdk-manual           - Yocto Project Software Development Kit (SDK) Developer's Guide.
+* bsp-guide            - Yocto Project Board Support Package (BSP) Developer's Guide
+* dev-manual           - Yocto Project Development Tasks Manual
+* kernel-dev           - Yocto Project Linux Kernel Development Manual
+* ref-manual           - Yocto Project Reference Manual
+* brief-yoctoprojectqs - Yocto Project Quick Start
+* profile-manual       - Yocto Project Profiling and Tracing Manual
+* toaster-manual       - Toaster User Manual
+* test-manual          - Yocto Project Test Environment Manual
 
 Each folder is self-contained regarding content and figures.
 
 If you want to find HTML versions of the Yocto Project manuals on the web,
-go to https://www.yoctoproject.org and click on the "Docs" tab.  From
-there you have access to archived documentation from previous releases, current
-documentation for the latest release, and "Docs in Progress" for the release
-currently being developed.
-
-In general, the Yocto Project site (https://www.yoctoproject.org) is a great
-reference for both information and downloads.
+the current versions reside at https://docs.yoctoproject.org.
 
 poky.yaml
 =========
@@ -61,9 +56,16 @@ poky.yaml
 This file defines variables used for documentation production.  The variables
 are used to define release pathnames, URLs for the published manuals, etc.
 
-template
-========
-Contains various templates, fonts, and some old PNG files.
+standards.md
+============
+
+This file specifies some rules to follow when contributing to the documentation.
+
+template/
+=========
+
+Contains a template.svg, to make it easier to create consistent
+SVG diagrams.
 
 Sphinx
 ======
@@ -117,6 +119,10 @@ dependencies is to use the Python Package Index (pip).
 To install all required packages run:
 
  $ pip3 install sphinx sphinx_rtd_theme pyyaml
+
+Also install the "inkscape" package from your distribution.
+Inkscape is need to convert SVG graphics to PNG (for EPUB
+export) and to PDF (for PDF export).
 
 To build the documentation locally, run:
 
@@ -332,7 +338,7 @@ References to the BitBake manual can be done:
  - With a specific description instead of the section name:
   :ref:`Azure Storage fetcher (az://) <bitbake:bitbake-user-manual/bitbake-user-manual-fetching:fetchers>`
  - With the section name:
-  ":ref:`bitbake:bitbake-user-manual/bitbake-user-manual-intro:usage and syntax` option
+  :ref:`bitbake:bitbake-user-manual/bitbake-user-manual-intro:usage and syntax` option
  - Linking to the entire BitBake manual:
   :doc:`BitBake User Manual <bitbake:index>`
 

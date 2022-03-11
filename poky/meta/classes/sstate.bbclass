@@ -1,4 +1,6 @@
-SSTATE_VERSION = "3"
+SSTATE_VERSION = "7"
+
+SSTATE_ZSTD_CLEVEL ??= "8"
 
 SSTATE_MANIFESTS ?= "${TMPDIR}/sstate-control"
 SSTATE_MANFILEPREFIX = "${SSTATE_MANIFESTS}/manifest-${SSTATE_MANMACH}-${PN}"
@@ -6,12 +8,12 @@ SSTATE_MANFILEPREFIX = "${SSTATE_MANIFESTS}/manifest-${SSTATE_MANMACH}-${PN}"
 def generate_sstatefn(spec, hash, taskname, siginfo, d):
     if taskname is None:
        return ""
-    extension = ".tgz"
+    extension = ".tar.zst"
     # 8 chars reserved for siginfo
     limit = 254 - 8
     if siginfo:
         limit = 254
-        extension = ".tgz.siginfo"
+        extension = ".tar.zst.siginfo"
     if not hash:
         hash = "INVALID"
     fn = spec + hash + "_" + taskname + extension
@@ -20,7 +22,7 @@ def generate_sstatefn(spec, hash, taskname, siginfo, d):
         components = spec.split(":")
         # Fields 0,5,6 are mandatory, 1 is most useful, 2,3,4 are just for information
         # 7 is for the separators
-        avail = (254 - len(hash + "_" + taskname + extension) - len(components[0]) - len(components[1]) - len(components[5]) - len(components[6]) - 7) // 3
+        avail = (limit - len(hash + "_" + taskname + extension) - len(components[0]) - len(components[1]) - len(components[5]) - len(components[6]) - 7) // 3
         components[2] = components[2][:avail]
         components[3] = components[3][:avail]
         components[4] = components[4][:avail]
@@ -37,7 +39,7 @@ SSTATE_PKGNAME    = "${SSTATE_EXTRAPATH}${@generate_sstatefn(d.getVar('SSTATE_PK
 SSTATE_PKG        = "${SSTATE_DIR}/${SSTATE_PKGNAME}"
 SSTATE_EXTRAPATH   = ""
 SSTATE_EXTRAPATHWILDCARD = ""
-SSTATE_PATHSPEC   = "${SSTATE_DIR}/${SSTATE_EXTRAPATHWILDCARD}*/*/${SSTATE_PKGSPEC}*_${SSTATE_PATH_CURRTASK}.tgz*"
+SSTATE_PATHSPEC   = "${SSTATE_DIR}/${SSTATE_EXTRAPATHWILDCARD}*/*/${SSTATE_PKGSPEC}*_${SSTATE_PATH_CURRTASK}.tar.zst*"
 
 # explicitly make PV to depend on evaluated value of PV variable
 PV[vardepvalue] = "${PV}"
@@ -67,6 +69,13 @@ SSTATE_DUPWHITELIST += "${DEPLOY_DIR_IMAGE}/microcode"
 SSTATE_SCAN_FILES ?= "*.la *-config *_config postinst-*"
 SSTATE_SCAN_CMD ??= 'find ${SSTATE_BUILDDIR} \( -name "${@"\" -o -name \"".join(d.getVar("SSTATE_SCAN_FILES").split())}" \) -type f'
 SSTATE_SCAN_CMD_NATIVE ??= 'grep -Irl -e ${RECIPE_SYSROOT} -e ${RECIPE_SYSROOT_NATIVE} -e ${HOSTTOOLS_DIR} ${SSTATE_BUILDDIR}'
+SSTATE_HASHEQUIV_FILEMAP ?= " \
+    populate_sysroot:*/postinst-useradd-*:${TMPDIR} \
+    populate_sysroot:*/postinst-useradd-*:${COREBASE} \
+    populate_sysroot:*/postinst-useradd-*:regex-\s(PATH|PSEUDO_IGNORE_PATHS|HOME|LOGNAME|OMP_NUM_THREADS|USER)=.*\s \
+    populate_sysroot:*/crossscripts/*:${TMPDIR} \
+    populate_sysroot:*/crossscripts/*:${COREBASE} \
+    "
 
 BB_HASHFILENAME = "False ${SSTATE_PKGSPEC} ${SSTATE_SWSPEC}"
 
@@ -107,6 +116,9 @@ SSTATE_SIG_KEY ?= ""
 SSTATE_SIG_PASSPHRASE ?= ""
 # Whether to verify the GnUPG signatures when extracting sstate archives
 SSTATE_VERIFY_SIG ?= "0"
+# List of signatures to consider valid.
+SSTATE_VALID_SIGS ??= ""
+SSTATE_VALID_SIGS[vardepvalue] = ""
 
 SSTATE_HASHEQUIV_METHOD ?= "oe.sstatesig.OEOuthashBasic"
 SSTATE_HASHEQUIV_METHOD[doc] = "The fully-qualified function used to calculate \
@@ -146,6 +158,8 @@ python () {
     for task in unique_tasks:
         d.prependVarFlag(task, 'prefuncs', "sstate_task_prefunc ")
         d.appendVarFlag(task, 'postfuncs', " sstate_task_postfunc")
+        d.setVarFlag(task, 'network', '1')
+        d.setVarFlag(task + "_setscene", 'network', '1')
 }
 
 def sstate_init(task, d):
@@ -363,7 +377,7 @@ def sstate_installpkg(ss, d):
             bb.warn("No signature file for sstate package %s, skipping acceleration..." % sstatepkg)
             return False
         signer = get_signer(d, 'local')
-        if not signer.verify(sstatepkg + '.sig'):
+        if not signer.verify(sstatepkg + '.sig', d.getVar("SSTATE_VALID_SIGS")):
             bb.warn("Cannot verify signature on sstate package %s, skipping acceleration..." % sstatepkg)
             return False
 
@@ -640,10 +654,21 @@ python sstate_hardcode_path () {
 
 def sstate_package(ss, d):
     import oe.path
+    import time
 
     tmpdir = d.getVar('TMPDIR')
 
+    fixtime = False
+    if ss['task'] == "package":
+        fixtime = True
+
+    def fixtimestamp(root, path):
+        f = os.path.join(root, path)
+        if os.lstat(f).st_mtime > sde:
+            os.utime(f, (sde, sde), follow_symlinks=False)
+
     sstatebuild = d.expand("${WORKDIR}/sstate-build-%s/" % ss['task'])
+    sde = int(d.getVar("SOURCE_DATE_EPOCH") or time.time())
     d.setVar("SSTATE_CURRTASK", ss['task'])
     bb.utils.remove(sstatebuild, recurse=True)
     bb.utils.mkdirhier(sstatebuild)
@@ -656,6 +681,8 @@ def sstate_package(ss, d):
         # to sstate tasks but there aren't many of these so better just avoid them entirely.
         for walkroot, dirs, files in os.walk(state[1]):
             for file in files + dirs:
+                if fixtime:
+                    fixtimestamp(walkroot, file)
                 srcpath = os.path.join(walkroot, file)
                 if not os.path.islink(srcpath):
                     continue
@@ -677,6 +704,11 @@ def sstate_package(ss, d):
         bb.utils.mkdirhier(plain)
         bb.utils.mkdirhier(pdir)
         bb.utils.rename(plain, pdir)
+        if fixtime:
+            fixtimestamp(pdir, "")
+            for walkroot, dirs, files in os.walk(pdir):
+                for file in files + dirs:
+                    fixtimestamp(walkroot, file)
 
     d.setVar('SSTATE_BUILDDIR', sstatebuild)
     d.setVar('SSTATE_INSTDIR', sstatebuild)
@@ -731,6 +763,7 @@ def pstaging_fetch(sstatefetch, d):
     localdata.setVar('FILESPATH', dldir)
     localdata.setVar('DL_DIR', dldir)
     localdata.setVar('PREMIRRORS', mirrors)
+    localdata.setVar('SRCPV', d.getVar('SRCPV'))
 
     # if BB_NO_NETWORK is set but we also have SSTATE_MIRROR_ALLOW_NETWORK,
     # we'll want to allow network access for the current set of fetches.
@@ -755,11 +788,16 @@ def pstaging_fetch(sstatefetch, d):
         except bb.fetch2.BBFetchException:
             pass
 
+pstaging_fetch[vardepsexclude] += "SRCPV"
+
+
 def sstate_setscene(d):
     shared_state = sstate_state_fromvars(d)
     accelerate = sstate_installpkg(shared_state, d)
     if not accelerate:
-        bb.fatal("No suitable staging package found")
+        msg = "No sstate archive obtainable, will run full task instead."
+        bb.warn(msg)
+        raise bb.BBHandledException(msg)
 
 python sstate_task_prefunc () {
     shared_state = sstate_state_fromvars(d)
@@ -796,30 +834,31 @@ sstate_task_postfunc[dirs] = "${WORKDIR}"
 sstate_create_package () {
 	# Exit early if it already exists
 	if [ -e ${SSTATE_PKG} ]; then
-		[ ! -w ${SSTATE_PKG} ] || touch ${SSTATE_PKG}
+		touch ${SSTATE_PKG} 2>/dev/null || true
 		return
 	fi
 
 	mkdir --mode=0775 -p `dirname ${SSTATE_PKG}`
 	TFILE=`mktemp ${SSTATE_PKG}.XXXXXXXX`
 
-	# Use pigz if available
-	OPT="-czS"
-	if [ -x "$(command -v pigz)" ]; then
-		OPT="-I pigz -cS"
+	OPT="-cS"
+	ZSTD="zstd -${SSTATE_ZSTD_CLEVEL} -T${ZSTD_THREADS}"
+	# Use pzstd if available
+	if [ -x "$(command -v pzstd)" ]; then
+		ZSTD="pzstd -${SSTATE_ZSTD_CLEVEL} -p ${ZSTD_THREADS}"
 	fi
 
 	# Need to handle empty directories
 	if [ "$(ls -A)" ]; then
 		set +e
-		tar $OPT -f $TFILE *
+		tar -I "$ZSTD" $OPT -f $TFILE *
 		ret=$?
 		if [ $ret -ne 0 ] && [ $ret -ne 1 ]; then
 			exit 1
 		fi
 		set -e
 	else
-		tar $OPT --file=$TFILE --files-from=/dev/null
+		tar -I "$ZSTD" $OPT --file=$TFILE --files-from=/dev/null
 	fi
 	chmod 0664 $TFILE
 	# Skip if it was already created by some other process
@@ -830,7 +869,7 @@ sstate_create_package () {
 	else
 		rm $TFILE
 	fi
-	[ ! -w ${SSTATE_PKG} ] || touch ${SSTATE_PKG}
+	touch ${SSTATE_PKG} 2>/dev/null || true
 }
 
 python sstate_sign_package () {
@@ -858,21 +897,25 @@ python sstate_report_unihash() {
 # Will be run from within SSTATE_INSTDIR.
 #
 sstate_unpack_package () {
-	tar -xvzf ${SSTATE_PKG}
-	# update .siginfo atime on local/NFS mirror
-	[ -O ${SSTATE_PKG}.siginfo ] && [ -w ${SSTATE_PKG}.siginfo ] && [ -h ${SSTATE_PKG}.siginfo ] && touch -a ${SSTATE_PKG}.siginfo
-	# Use "! -w ||" to return true for read only files
-	[ ! -w ${SSTATE_PKG} ] || touch --no-dereference ${SSTATE_PKG}
-	[ ! -w ${SSTATE_PKG}.sig ] || [ ! -e ${SSTATE_PKG}.sig ] || touch --no-dereference ${SSTATE_PKG}.sig
-	[ ! -w ${SSTATE_PKG}.siginfo ] || [ ! -e ${SSTATE_PKG}.siginfo ] || touch --no-dereference ${SSTATE_PKG}.siginfo
+	ZSTD="zstd -T${ZSTD_THREADS}"
+	# Use pzstd if available
+	if [ -x "$(command -v pzstd)" ]; then
+		ZSTD="pzstd -p ${ZSTD_THREADS}"
+	fi
+
+	tar -I "$ZSTD" -xvpf ${SSTATE_PKG}
+	# update .siginfo atime on local/NFS mirror if it is a symbolic link
+	[ ! -h ${SSTATE_PKG}.siginfo ] || touch -a ${SSTATE_PKG}.siginfo 2>/dev/null || true
+	# update each symbolic link instead of any referenced file
+	touch --no-dereference ${SSTATE_PKG} 2>/dev/null || true
+	[ ! -e ${SSTATE_PKG}.sig ] || touch --no-dereference ${SSTATE_PKG}.sig 2>/dev/null || true
+	[ ! -e ${SSTATE_PKG}.siginfo ] || touch --no-dereference ${SSTATE_PKG}.siginfo 2>/dev/null || true
 }
 
 BB_HASHCHECK_FUNCTION = "sstate_checkhashes"
 
 def sstate_checkhashes(sq_data, d, siginfo=False, currentcount=0, summary=True, **kwargs):
     found = set()
-    foundLocal = set()
-    foundNet = set()
     missed = set()
 
     def gethash(task):
@@ -895,22 +938,22 @@ def sstate_checkhashes(sq_data, d, siginfo=False, currentcount=0, summary=True, 
 
         return spec, extrapath, tname
 
+    def getsstatefile(tid, siginfo, d):
+        spec, extrapath, tname = getpathcomponents(tid, d)
+        return extrapath + generate_sstatefn(spec, gethash(tid), tname, siginfo, d)
 
     for tid in sq_data['hash']:
 
-        spec, extrapath, tname = getpathcomponents(tid, d)
-
-        sstatefile = d.expand("${SSTATE_DIR}/" + extrapath + generate_sstatefn(spec, gethash(tid), tname, siginfo, d))
+        sstatefile = d.expand("${SSTATE_DIR}/" + getsstatefile(tid, siginfo, d))
 
         if os.path.exists(sstatefile):
-            bb.debug(2, "SState: Found valid sstate file %s" % sstatefile)
             found.add(tid)
-            foundLocal.add(tid)
-            continue
+            bb.debug(2, "SState: Found valid sstate file %s" % sstatefile)
         else:
             missed.add(tid)
             bb.debug(2, "SState: Looked for but didn't find file %s" % sstatefile)
 
+    foundLocal = len(found)
     mirrors = d.getVar("SSTATE_MIRRORS")
     if mirrors:
         # Copy the data object and override DL_DIR and SRC_URI
@@ -951,55 +994,49 @@ def sstate_checkhashes(sq_data, d, siginfo=False, currentcount=0, summary=True, 
                 fetcher.checkstatus()
                 bb.debug(2, "SState: Successful fetch test for %s" % srcuri)
                 found.add(tid)
-                foundNet.add(tid)
-                if tid in missed:
-                    missed.remove(tid)
-            except:
-                missed.add(tid)
-                bb.debug(2, "SState: Unsuccessful fetch test for %s" % srcuri)
-                pass
-            if len(tasklist) >= min_tasks:
+                missed.remove(tid)
+            except bb.fetch2.FetchError as e:
+                bb.debug(2, "SState: Unsuccessful fetch test for %s (%s)" % (srcuri, repr(e)))
+            except Exception as e:
+                bb.error("SState: cannot test %s: %s" % (srcuri, repr(e)))
+
+            if progress:
                 bb.event.fire(bb.event.ProcessProgress(msg, len(tasklist) - thread_worker.tasks.qsize()), d)
 
         tasklist = []
-        min_tasks = 100
-        for tid in sq_data['hash']:
-            if tid in found:
-                continue
-            spec, extrapath, tname = getpathcomponents(tid, d)
-            sstatefile = d.expand(extrapath + generate_sstatefn(spec, gethash(tid), tname, siginfo, d))
+        for tid in missed:
+            sstatefile = d.expand(getsstatefile(tid, siginfo, d))
             tasklist.append((tid, sstatefile))
 
         if tasklist:
-            if len(tasklist) >= min_tasks:
+            nproc = min(int(d.getVar("BB_NUMBER_THREADS")), len(tasklist))
+
+            progress = len(tasklist) >= 100
+            if progress:
                 msg = "Checking sstate mirror object availability"
                 bb.event.fire(bb.event.ProcessStarted(msg, len(tasklist)), d)
 
-            import multiprocessing
-            nproc = min(multiprocessing.cpu_count(), len(tasklist))
-
             bb.event.enable_threadlock()
             pool = oe.utils.ThreadedPool(nproc, len(tasklist),
-                    worker_init=checkstatus_init, worker_end=checkstatus_end)
+                    worker_init=checkstatus_init, worker_end=checkstatus_end,
+                    name="sstate_checkhashes-")
             for t in tasklist:
                 pool.add_task(checkstatus, t)
             pool.start()
             pool.wait_completion()
             bb.event.disable_threadlock()
 
-            if len(tasklist) >= min_tasks:
+            if progress:
                 bb.event.fire(bb.event.ProcessFinished(msg), d)
 
     inheritlist = d.getVar("INHERIT")
     if "toaster" in inheritlist:
         evdata = {'missed': [], 'found': []};
         for tid in missed:
-            spec, extrapath, tname = getpathcomponents(tid, d)
-            sstatefile = d.expand(extrapath + generate_sstatefn(spec, gethash(tid), tname, False, d))
+            sstatefile = d.expand(getsstatefile(tid, False, d))
             evdata['missed'].append((bb.runqueue.fn_from_tid(tid), bb.runqueue.taskname_from_tid(tid), gethash(tid), sstatefile ) )
         for tid in found:
-            spec, extrapath, tname = getpathcomponents(tid, d)
-            sstatefile = d.expand(extrapath + generate_sstatefn(spec, gethash(tid), tname, False, d))
+            sstatefile = d.expand(getsstatefile(tid, False, d))
             evdata['found'].append((bb.runqueue.fn_from_tid(tid), bb.runqueue.taskname_from_tid(tid), gethash(tid), sstatefile ) )
         bb.event.fire(bb.event.MetadataEvent("MissedSstate", evdata), d)
 
@@ -1013,7 +1050,8 @@ def sstate_checkhashes(sq_data, d, siginfo=False, currentcount=0, summary=True, 
         match = 0
         if total:
             match = len(found) / total * 100
-        bb.plain("Sstate summary: Wanted %d Local %d Network %d Missed %d Current %d (%d%% match, %d%% complete)" % (total, len(foundLocal), len(foundNet),len(missed), currentcount, match, complete))
+        bb.plain("Sstate summary: Wanted %d Local %d Mirrors %d Missed %d Current %d (%d%% match, %d%% complete)" %
+            (total, foundLocal, len(found)-foundLocal, len(missed), currentcount, match, complete))
 
     if hasattr(bb.parse.siggen, "checkhashes"):
         bb.parse.siggen.checkhashes(sq_data, missed, found, d)
@@ -1038,15 +1076,13 @@ def setscene_depvalid(task, taskdependees, notneeded, d, log=None):
 
     logit("Considering setscene task: %s" % (str(taskdependees[task])), log)
 
+    directtasks = ["do_populate_lic", "do_deploy_source_date_epoch", "do_shared_workdir", "do_stash_locale", "do_gcc_stash_builddir"]
+
     def isNativeCross(x):
         return x.endswith("-native") or "-cross-" in x or "-crosssdk" in x or x.endswith("-cross")
 
-    # We only need to trigger populate_lic through direct dependencies
-    if taskdependees[task][1] == "do_populate_lic":
-        return True
-
-    # stash_locale and gcc_stash_builddir are never needed as a dependency for built objects
-    if taskdependees[task][1] == "do_stash_locale" or taskdependees[task][1] == "do_gcc_stash_builddir":
+    # We only need to trigger deploy_source_date_epoch through direct dependencies
+    if taskdependees[task][1] in directtasks:
         return True
 
     # We only need to trigger packagedata through direct dependencies
@@ -1069,8 +1105,8 @@ def setscene_depvalid(task, taskdependees, notneeded, d, log=None):
         # do_package_write_* need do_populate_sysroot as they're mainly postinstall dependencies
         if taskdependees[task][1] == "do_populate_sysroot" and taskdependees[dep][1] in ['do_package_write_deb', 'do_package_write_ipk', 'do_package_write_rpm']:
             return False
-        # do_package/packagedata/package_qa don't need do_populate_sysroot
-        if taskdependees[task][1] == "do_populate_sysroot" and taskdependees[dep][1] in ['do_package', 'do_packagedata', 'do_package_qa']:
+        # do_package/packagedata/package_qa/deploy don't need do_populate_sysroot
+        if taskdependees[task][1] == "do_populate_sysroot" and taskdependees[dep][1] in ['do_package', 'do_packagedata', 'do_package_qa', 'do_deploy']:
             continue
         # Native/Cross packages don't exist and are noexec anyway
         if isNativeCross(taskdependees[dep][0]) and taskdependees[dep][1] in ['do_package_write_deb', 'do_package_write_ipk', 'do_package_write_rpm', 'do_packagedata', 'do_package', 'do_package_qa']:
@@ -1118,12 +1154,8 @@ def setscene_depvalid(task, taskdependees, notneeded, d, log=None):
             # Target populate_sysroot need their dependencies
             return False
 
-        if taskdependees[task][1] == 'do_shared_workdir':
+        if taskdependees[dep][1] in directtasks:
             continue
-
-        if taskdependees[dep][1] == "do_populate_lic":
-            continue
-
 
         # Safe fallthrough default
         logit(" Default setscene dependency fall through due to dependency: %s" % (str(taskdependees[dep])), log)

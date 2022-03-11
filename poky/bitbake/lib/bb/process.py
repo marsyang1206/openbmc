@@ -60,7 +60,7 @@ class Popen(subprocess.Popen):
         "close_fds": True,
         "preexec_fn": subprocess_setup,
         "stdout": subprocess.PIPE,
-        "stderr": subprocess.STDOUT,
+        "stderr": subprocess.PIPE,
         "stdin": subprocess.PIPE,
         "shell": False,
     }
@@ -181,5 +181,8 @@ def run(cmd, input=None, log=None, extrafiles=None, **options):
             stderr = stderr.decode("utf-8")
 
     if pipe.returncode != 0:
+        if log:
+            # Don't duplicate the output in the exception if logging it
+            raise ExecutionError(cmd, pipe.returncode, None, None)
         raise ExecutionError(cmd, pipe.returncode, stdout, stderr)
     return stdout, stderr

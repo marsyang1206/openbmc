@@ -1,8 +1,8 @@
 require gdb-common.inc
 
-DEPENDS = "expat-native ncurses-native flex-native bison-native"
+DEPENDS = "expat-native gmp-native ncurses-native flex-native bison-native"
 
-inherit python3native
+inherit python3native pkgconfig
 
 # Overrides PACKAGECONFIG variables in gdb-common.inc
 PACKAGECONFIG ??= "python readline ${@bb.utils.filter('DISTRO_FEATURES', 'debuginfod', d)}"

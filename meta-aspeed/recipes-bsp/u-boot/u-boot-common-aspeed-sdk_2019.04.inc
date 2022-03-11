@@ -13,5 +13,10 @@ SRCREV = "44a8c618c1215e0faac0f335f0afd56ed4240e76"
 SRC_URI = "git://git@github.com/openbmc/u-boot.git;nobranch=1;protocol=https"
 
 S = "${WORKDIR}/git"
+B = "${WORKDIR}/build"
+do_configure[cleandirs] = "${B}"
+
+# We don't have 'u-boot-initial-env' target in our u-boot version
+UBOOT_INITIAL_ENV=""
 
 PV = "v2019.04+git${SRCPV}"

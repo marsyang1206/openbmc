@@ -23,6 +23,7 @@ def ipmi_whitelists(d):
 
 PACKAGECONFIG ??= ""
 PACKAGECONFIG[dynamic-sensors] = "--enable-dynamic-sensors,--disable-dynamic-sensors"
+PACKAGECONFIG[hybrid-sensors] = "--enable-hybrid-sensors,--disable-hybrid-sensors"
 
 DEPENDS += "autoconf-archive-native"
 DEPENDS += "nlohmann-json"
@@ -96,6 +97,7 @@ NETIPMI_PROVIDER_LIBRARY += "libusercmds.so"
 FILES:${PN}:append = " ${libdir}/host-ipmid/lib*${SOLIBS}"
 FILES:${PN}:append = " ${libdir}/ipmid-providers/lib*${SOLIBS}"
 FILES:${PN}:append = " ${libdir}/net-ipmid/lib*${SOLIBS}"
+FILES:${PN}:append = " ${systemd_system_unitdir}/phosphor-ipmi-host.service.d/*.conf"
 FILES:${PN}-dev:append = " ${libdir}/ipmid-providers/lib*${SOLIBSDEV} ${libdir}/ipmid-providers/*.la"
 
 # Soft Power Off
@@ -103,7 +105,7 @@ FILES:${PN}-dev:append = " ${libdir}/ipmid-providers/lib*${SOLIBSDEV} ${libdir}/
 SOFT_SVC = "xyz.openbmc_project.Ipmi.Internal.SoftPowerOff.service"
 SOFT_TGTFMT = "obmc-host-shutdown@{0}.target"
 SOFT_FMT = "../${SOFT_SVC}:${SOFT_TGTFMT}.requires/${SOFT_SVC}"
-SYSTEMD_LINK_${PN} += "${@compose_list_zip(d, 'SOFT_FMT', 'OBMC_HOST_INSTANCES')}"
+SYSTEMD_LINK:${PN} += "${@compose_list_zip(d, 'SOFT_FMT', 'OBMC_HOST_INSTANCES')}"
 
 #Collect all hardcoded sensor yamls from different recipes and
 #merge all of them with sensor.yaml.
@@ -136,3 +138,30 @@ python do_merge_sensors () {
 
 # python-pyyaml-native is installed by do_configure, so put this task after
 addtask merge_sensors after do_configure before do_compile
+
+IPMI_HOST_NEEDED_SERVICES = "\
+    mapper-wait@-xyz-openbmc_project-control-host{}-boot.service \
+    mapper-wait@-xyz-openbmc_project-control-host{}-boot-one_time.service \
+    mapper-wait@-xyz-openbmc_project-control-host{}-power_restore_policy.service \
+    mapper-wait@-xyz-openbmc_project-control-host{}-restriction_mode.service \
+    "
+
+do_install:append() {
+
+    # Create service override file.
+    override_dir=${D}${systemd_system_unitdir}/phosphor-ipmi-host.service.d
+    override_file=${override_dir}/10-override.conf
+    mkdir -p ${override_dir}
+    echo "[Unit]" > ${override_file}
+
+    # Insert host-instance based service dependencies.
+    for i in ${OBMC_HOST_INSTANCES};
+    do
+        for s in ${IPMI_HOST_NEEDED_SERVICES};
+        do
+            service=$(echo ${s} | sed "s/{}/${i}/g")
+            echo "Wants=${service}" >> ${override_file}
+            echo "After=${service}" >> ${override_file}
+        done
+    done
+}

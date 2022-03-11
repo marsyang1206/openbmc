@@ -11,7 +11,7 @@ LIC_FILES_CHKSUM = "file://COPYING.txt;beginline=2;endline=3;md5=f7029fbbc5898b2
 # July 27th
 SRCREV = "c389dfa4c3af92b006ada4f7595bbc3e6df3f356"
 
-SRC_URI = "git://github.com/vrtadmin/clamav-devel;branch=rel/0.104 \
+SRC_URI = "git://github.com/vrtadmin/clamav-devel;branch=rel/0.104;protocol=https \
     file://clamd.conf \
     file://freshclam.conf \
     file://volatiles.03_clamav \
@@ -54,7 +54,7 @@ export OECMAKE_C_FLAGS += " -I${STAGING_INCDIR} -L ${RECIPE_SYSROOT}${nonarch_li
 
 do_install:append () {
     install -d ${D}/${sysconfdir}
-    install -d ${D}/${localstatedir}/lib/clamav
+    install -d -o ${CLAMAV_UID} -g ${CLAMAV_GID} ${D}/${localstatedir}/lib/clamav
     install -d ${D}${sysconfdir}/clamav ${D}${sysconfdir}/default/volatiles
 
     install -m 644 ${WORKDIR}/clamd.conf ${D}/${prefix}/${sysconfdir}
@@ -83,7 +83,6 @@ pkg_postinst:${PN} () {
         elif [ -e ${sysconfdir}/init.d/populate-volatile.sh ]; then
             ${sysconfdir}/init.d/populate-volatile.sh update
         fi
-        chown -R ${CLAMAV_UID}:${CLAMAV_GID} ${localstatedir}/lib/clamav
     fi
 }
 
@@ -136,11 +135,11 @@ FILES:${PN}-doc = "${mandir}/man/* \
                    ${datadir}/man/* \
                    ${docdir}/* "
 
-USERADD_PACKAGES = "${PN}"
-GROUPADD_PARAM:${PN} = "--system ${CLAMAV_UID}"
-USERADD_PARAM:${PN} = "--system -g ${CLAMAV_GID} --home-dir  \
+USERADD_PACKAGES = "${PN}-freshclam "
+GROUPADD_PARAM:${PN}-freshclam = "--system ${CLAMAV_UID}"
+USERADD_PARAM:${PN}-freshclam = "--system -g ${CLAMAV_GID} --home-dir  \
     ${localstatedir}/lib/${BPN} \
-    --no-create-home  --shell /sbin/nologin ${BPN}"
+    --no-create-home  --shell /sbin/nologin ${PN}"
 
 RPROVIDES:${PN} += "${PN}-systemd"
 RREPLACES:${PN} += "${PN}-systemd"
@@ -149,5 +148,7 @@ SYSTEMD_PACKAGES  = "${PN}-daemon ${PN}-freshclam"
 SYSTEMD_SERVICE:${PN}-daemon = "clamav-daemon.service"
 SYSTEMD_SERVICE:${PN}-freshclam = "clamav-freshclam.service"
 
-RDEPENDS:${PN} = "openssl ncurses-libncurses libxml2 libbz2 ncurses-libtinfo curl libpcre2 clamav-freshclam clamav-libclamav"
-RDEPENDS:${PN}-daemon = "clamav"
+RDEPENDS:${PN} = "openssl ncurses-libncurses libxml2 libbz2 ncurses-libtinfo curl libpcre2 clamav-libclamav"
+RRECOMMENDS:${PN} = "clamav-freshclam"
+RDEPENDS:${PN}-freshclam = "clamav"
+RDEPENDS:${PN}-daemon = "clamav clamav-freshclam"

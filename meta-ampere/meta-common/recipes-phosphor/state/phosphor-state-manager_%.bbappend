@@ -1,15 +1,21 @@
 FILESEXTRAPATHS:prepend := "${THISDIR}/${PN}:"
 
-DEPS_CFG = "resetreason.conf"
-DEPS_TGT = "phosphor-discover-system-state@.service"
-SYSTEMD_OVERRIDE_${PN}-discover:append = "${DEPS_CFG}:${DEPS_TGT}.d/${DEPS_CFG}"
+DEPENDS += "gpioplus libgpiod"
+
+EXTRA_OEMESON:append = " -Dhost-gpios=enabled"
 
 FILES:${PN} += "${systemd_system_unitdir}/*"
+FILES:${PN}-host += "${bindir}/phosphor-host-condition-gpio"
+SYSTEMD_SERVICE:${PN}-host += "phosphor-host-condition-gpio@.service"
 
-SRC_URI += " \
-             file://ampere-reset-host-check@.service \
-           "
+pkg_postinst:${PN}-obmc-targets:prepend() {
+    mkdir -p $D$systemd_system_unitdir/multi-user.target.requires
+    LINK="$D$systemd_system_unitdir/multi-user.target.requires/phosphor-host-condition-gpio@0.service"
+    TARGET="../phosphor-host-condition-gpio@.service"
+    ln -s $TARGET $LINK
+}
 
-do_install:append() {
-    install -m 0644 ${WORKDIR}/ampere-reset-host-check@.service ${D}${systemd_unitdir}/system/phosphor-reset-host-check@.service
+pkg_prerm:${PN}-obmc-targets:prepend() {
+    LINK="$D$systemd_system_unitdir/multi-user.target.requires/phosphor-host-condition-gpio@0.service"
+    rm $LINK
 }

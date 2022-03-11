@@ -40,10 +40,10 @@ def write_rpm_perfiledata(srcname, d):
         outfile.write("# Dependency table\n")
         outfile.write('deps = {\n')
         for pkg in packages.split():
-            dependsflist_key = 'FILE' + varname + 'FLIST' + "_" + pkg
+            dependsflist_key = 'FILE' + varname + 'FLIST' + ":" + pkg
             dependsflist = (d.getVar(dependsflist_key) or "")
             for dfile in dependsflist.split():
-                key = "FILE" + varname + "_" + dfile + "_" + pkg
+                key = "FILE" + varname + ":" + dfile + ":" + pkg
                 deps = filter_nativesdk_deps(srcname, d.getVar(key) or "")
                 depends_dict = bb.utils.explode_dep_versions(deps)
                 file = dfile.replace("@underscore@", "_")
@@ -249,10 +249,10 @@ python write_specfile () {
 
     def get_perfile(varname, pkg, d):
         deps = []
-        dependsflist_key = 'FILE' + varname + 'FLIST' + "_" + pkg
+        dependsflist_key = 'FILE' + varname + 'FLIST' + ":" + pkg
         dependsflist = (d.getVar(dependsflist_key) or "")
         for dfile in dependsflist.split():
-            key = "FILE" + varname + "_" + dfile + "_" + pkg
+            key = "FILE" + varname + ":" + dfile + ":" + pkg
             depends = d.getVar(key)
             if depends:
                 deps.append(depends)
@@ -684,8 +684,8 @@ python do_package_rpm () {
     cmd = cmd + " --define '_use_internal_dependency_generator 0'"
     cmd = cmd + " --define '_binaries_in_noarch_packages_terminate_build 0'"
     cmd = cmd + " --define '_build_id_links none'"
-    cmd = cmd + " --define '_binary_payload w6T%d.xzdio'" % int(d.getVar("XZ_THREADS"))
-    cmd = cmd + " --define '_source_payload w6T%d.xzdio'" % int(d.getVar("XZ_THREADS"))
+    cmd = cmd + " --define '_binary_payload w19T%d.zstdio'" % int(d.getVar("ZSTD_THREADS"))
+    cmd = cmd + " --define '_source_payload w19T%d.zstdio'" % int(d.getVar("ZSTD_THREADS"))
     cmd = cmd + " --define 'clamp_mtime_to_source_date_epoch 1'"
     cmd = cmd + " --define 'use_source_date_epoch_as_buildtime 1'"
     cmd = cmd + " --define '_buildhost reproducible'"
@@ -748,9 +748,8 @@ python do_package_write_rpm () {
 do_package_write_rpm[dirs] = "${PKGWRITEDIRRPM}"
 do_package_write_rpm[cleandirs] = "${PKGWRITEDIRRPM}"
 do_package_write_rpm[depends] += "${@oe.utils.build_depends_string(d.getVar('PACKAGE_WRITE_DEPS'), 'do_populate_sysroot')}"
-addtask package_write_rpm after do_packagedata do_package
+addtask package_write_rpm after do_packagedata do_package do_deploy_source_date_epoch before do_build
+do_build[rdeptask] += "do_package_write_rpm"
 
 PACKAGEINDEXDEPS += "rpm-native:do_populate_sysroot"
 PACKAGEINDEXDEPS += "createrepo-c-native:do_populate_sysroot"
-
-do_build[recrdeptask] += "do_package_write_rpm"

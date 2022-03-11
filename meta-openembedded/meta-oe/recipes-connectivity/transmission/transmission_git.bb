@@ -8,7 +8,7 @@ DEPENDS = "curl libevent gnutls openssl libtool intltool-native glib-2.0-native"
 RDEPENDS:${PN}-web = "${PN}"
 
 SRC_URI = " \
-	gitsm://github.com/transmission/transmission \
+	gitsm://github.com/transmission/transmission;branch=master;protocol=https \
 	file://transmission-daemon \
 "
 
@@ -18,7 +18,7 @@ PV = "3.00"
 
 S = "${WORKDIR}/git"
 
-inherit autotools-brokensep gettext update-rc.d systemd mime-xdg
+inherit autotools-brokensep gettext update-rc.d pkgconfig systemd mime-xdg
 
 PACKAGECONFIG = "${@bb.utils.contains('DISTRO_FEATURES', 'x11', 'gtk', '', d)} \
                  ${@bb.utils.contains('DISTRO_FEATURES','systemd','systemd','',d)}"

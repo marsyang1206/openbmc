@@ -1,8 +1,8 @@
 SUMMARY = "dbus-sensors"
 DESCRIPTION = "Dbus Sensor Services Configured from D-Bus"
 
-SRC_URI = "git://github.com/openbmc/dbus-sensors.git"
-SRCREV = "f1ace50bbb781c0febd15387110d1a03b11391f9"
+SRC_URI = "git://github.com/openbmc/dbus-sensors.git;branch=master;protocol=https"
+SRCREV = "6ad74d9f369884f5ae4c40301c2c01a2ece33105"
 
 PV = "0.1+git${SRCPV}"
 
@@ -65,8 +65,16 @@ SYSTEMD_SERVICE:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'external', \
                                                'xyz.openbmc_project.externalsensor.service', \
                                                '', d)}"
 
-DEPENDS = "boost nlohmann-json sdbusplus i2c-tools libgpiod"
-inherit meson systemd
+DEPENDS = " \
+    boost \
+    i2c-tools \
+    libgpiod \
+    nlohmann-json \
+    phosphor-logging \
+    sdbusplus \
+    "
+inherit pkgconfig meson systemd
 
 S = "${WORKDIR}/git"
 
+EXTRA_OEMESON:append = " -Dtests=disabled"

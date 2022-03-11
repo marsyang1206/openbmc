@@ -100,15 +100,15 @@ do_install () {
 	install -m 644 ${S}/wpa_supplicant/dbus/*.service ${D}/${datadir}/dbus-1/system-services
 
 	if ${@bb.utils.contains('DISTRO_FEATURES','systemd','true','false',d)}; then
-		install -d ${D}/${systemd_unitdir}/system
-		install -m 644 ${S}/wpa_supplicant/systemd/*.service ${D}/${systemd_unitdir}/system
+		install -d ${D}/${systemd_system_unitdir}
+		install -m 644 ${S}/wpa_supplicant/systemd/*.service ${D}/${systemd_system_unitdir}
 	fi
 
 	install -d ${D}/etc/default/volatiles
 	install -m 0644 ${WORKDIR}/99_wpa_supplicant ${D}/etc/default/volatiles
 }
 
-pkg_postinst:wpa-supplicant () {
+pkg_postinst:${PN} () {
 	# If we're offline, we don't need to do this.
 	if [ "x$D" = "x" ]; then
 		killall -q -HUP dbus-daemon || true

@@ -3,7 +3,7 @@ LICENSE = "GPLv2"
 LIC_FILES_CHKSUM = "file://COPYING;md5=751419260aa954499f7abaabaa882bbe"
 HOMEPAGE = "https://www.musicpd.org/clients/ncmpc/"
 
-inherit meson
+inherit meson pkgconfig
 
 DEPENDS += " \
     boost \
@@ -33,7 +33,7 @@ PACKAGECONFIG[outputs_screen] = "-Doutputs_screen=true,-Doutputs_screen=false"
 PACKAGECONFIG[chat_screen] = "-Dchat_screen=true,-Dchat_screen=false"
 
 SRC_URI = " \
-    git://github.com/MusicPlayerDaemon/ncmpc \
+    git://github.com/MusicPlayerDaemon/ncmpc;branch=master;protocol=https \
 "
 SRCREV = "6780ec072f1d314f44ed77efdc58d03c6fbcc96b"
 S = "${WORKDIR}/git"

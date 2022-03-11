@@ -1011,9 +1011,9 @@ If you plan on customizing a recipe for a particular BSP, you need to do
 the following:
 
 -  Create a ``*.bbappend`` file for the modified recipe. For information on using
-   append files, see the ":ref:`dev-manual/common-tasks:using
-   .bbappend files in your layer`" section in the Yocto Project Development
-   Tasks Manual.
+   append files, see the
+   ":ref:`dev-manual/common-tasks:appending other layers metadata with your layer`"
+   section in the Yocto Project Development Tasks Manual.
 
 -  Ensure your directory structure in the BSP layer that supports your
    machine is such that the OpenEmbedded build system can find it. See
@@ -1121,12 +1121,12 @@ list describes them in order of preference:
    how to use these variables.
 
    If you build as you normally would, without specifying any recipes in
-   the :term:`LICENSE_FLAGS_WHITELIST`, the build stops and provides you
-   with the list of recipes that you have tried to include in the image
-   that need entries in the :term:`LICENSE_FLAGS_WHITELIST`. Once you enter
-   the appropriate license flags into the whitelist, restart the build
-   to continue where it left off. During the build, the prompt will not
-   appear again since you have satisfied the requirement.
+   the :term:`LICENSE_FLAGS_WHITELIST` variable, the build stops and provides
+   you with the list of recipes that you have tried to include in the image
+   that need entries in the :term:`LICENSE_FLAGS_WHITELIST` variable. Once you
+   enter the appropriate license flags into it, restart the build to continue
+   where it left off. During the build, the prompt will not appear again since
+   you have satisfied the requirement.
 
    Once the appropriate license flags are on the white list in the
    :term:`LICENSE_FLAGS_WHITELIST` variable, you can build the encumbered
@@ -1266,7 +1266,7 @@ located in the layer ``poky/meta-yocto-bsp/conf/machine`` and is named
    EXTRA_IMAGEDEPENDS += "u-boot"
 
    DEFAULTTUNE ?= "cortexa8hf-neon"
-   include conf/machine/include/tune-cortexa8.inc
+   include conf/machine/include/arm/armv7a/tune-cortexa8.inc
 
    IMAGE_FSTYPES += "tar.bz2 jffs2 wic wic.bmap"
    EXTRA_IMAGECMD:jffs2 = "-lnp "
@@ -1344,7 +1344,7 @@ Project Reference Manual.
    .. note::
 
       The include statement that pulls in the
-      ``conf/machine/include/tune-cortexa8.inc`` file provides many tuning
+      ``conf/machine/include/arm/tune-cortexa8.inc`` file provides many tuning
       possibilities.
 
 -  :term:`IMAGE_FSTYPES`: The

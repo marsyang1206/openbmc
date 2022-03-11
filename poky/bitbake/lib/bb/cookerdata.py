@@ -86,7 +86,7 @@ class ConfigParameters(object):
                 action['msg'] = "Only one target can be used with the --environment option."
             elif self.options.buildfile and len(self.options.pkgs_to_build) > 0:
                 action['msg'] = "No target should be used with the --environment and --buildfile options."
-            elif len(self.options.pkgs_to_build) > 0:
+            elif self.options.pkgs_to_build:
                 action['action'] = ["showEnvironmentTarget", self.options.pkgs_to_build]
             else:
                 action['action'] = ["showEnvironment", self.options.buildfile]
@@ -210,7 +210,7 @@ def findConfigFile(configfile, data):
 
 #
 # We search for a conf/bblayers.conf under an entry in BBPATH or in cwd working
-# up to /. If that fails, we search for a conf/bitbake.conf in BBPATH.
+# up to /. If that fails, bitbake would fall back to cwd.
 #
 
 def findTopdir():
@@ -223,11 +223,8 @@ def findTopdir():
     layerconf = findConfigFile("bblayers.conf", d)
     if layerconf:
         return os.path.dirname(os.path.dirname(layerconf))
-    if bbpath:
-        bitbakeconf = bb.utils.which(bbpath, "conf/bitbake.conf")
-        if bitbakeconf:
-            return os.path.dirname(os.path.dirname(bitbakeconf))
-    return None
+
+    return os.path.abspath(os.getcwd())
 
 class CookerDataBuilder(object):
 
@@ -291,6 +288,8 @@ class CookerDataBuilder(object):
 
             multiconfig = (self.data.getVar("BBMULTICONFIG") or "").split()
             for config in multiconfig:
+                if config[0].isdigit():
+                    bb.fatal("Multiconfig name '%s' is invalid as multiconfigs cannot start with a digit" % config)
                 mcdata = self.parseConfigurationFiles(self.prefiles, self.postfiles, config)
                 bb.event.fire(bb.event.ConfigParsed(), mcdata)
                 self.mcdata[config] = mcdata
@@ -341,6 +340,9 @@ class CookerDataBuilder(object):
 
             layers = (data.getVar('BBLAYERS') or "").split()
             broken_layers = []
+
+            if not layers:
+                bb.fatal("The bblayers.conf file doesn't contain any BBLAYERS definition")
 
             data = bb.data.createCopy(data)
             approved = bb.utils.approved_variables()
@@ -396,6 +398,8 @@ class CookerDataBuilder(object):
                 if c in collections_tmp:
                     bb.fatal("Found duplicated BBFILE_COLLECTIONS '%s', check bblayers.conf or layer.conf to fix it." % c)
                 compat = set((data.getVar("LAYERSERIES_COMPAT_%s" % c) or "").split())
+                if compat and not layerseries:
+                    bb.fatal("No core layer found to work with layer '%s'. Missing entry in bblayers.conf?" % c)
                 if compat and not (compat & layerseries):
                     bb.fatal("Layer %s is not compatible with the core layer which only supports these series: %s (layer is compatible with %s)"
                               % (c, " ".join(layerseries), " ".join(compat)))
@@ -409,6 +413,9 @@ class CookerDataBuilder(object):
                         " the expected location.\nMaybe you accidentally"
                         " invoked bitbake from the wrong directory?")
             raise SystemExit(msg)
+
+        if not data.getVar("TOPDIR"):
+            data.setVar("TOPDIR", os.path.abspath(os.getcwd()))
 
         data = parse_config_file(os.path.join("conf", "bitbake.conf"), data)
 

@@ -10,8 +10,8 @@ inherit obmc-phosphor-systemd
 
 DEPENDS += "systemd"
 DEPENDS += "phosphor-ipmi-flash"
-RDEPENDS_${PN} += "libsystemd"
-RDEPENDS_${PN} += "bash"
+RDEPENDS:${PN} += "libsystemd"
+RDEPENDS:${PN} += "bash"
 
 
 SRC_URI = " \
@@ -22,15 +22,16 @@ SRC_URI = " \
     "
 
 SYSTEMD_PACKAGES = "${PN}"
-SYSTEMD_SERVICE_${PN} = " \
+SYSTEMD_SERVICE:${PN} = " \
     kudo-fw-ver.service \
     "
 
 do_install () {
-    install -d ${D}/${sbindir}
-    install -m 0755 ${WORKDIR}/kudo-fw.sh ${D}/${sbindir}/kudo-fw.sh
-    install -m 0755 ${WORKDIR}/kudo-fw-ver.sh ${D}/${sbindir}/kudo-fw-ver.sh
-    install -m 0755 ${WORKDIR}/kudo-lib.sh ${D}/${sbindir}/kudo-lib.sh
+    install -d ${D}${sbindir}
+    install -d ${D}${libexecdir}/${PN}
+    install -m 0755 ${WORKDIR}/kudo-fw.sh ${D}${sbindir}/kudo-fw.sh
+    install -m 0755 ${WORKDIR}/kudo-fw-ver.sh ${D}${libexecdir}/${PN}/kudo-fw-ver.sh
+    install -m 0755 ${WORKDIR}/kudo-lib.sh ${D}${libexecdir}/${PN}/kudo-lib.sh
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${WORKDIR}/kudo-fw-ver.service ${D}${systemd_system_unitdir}
 }

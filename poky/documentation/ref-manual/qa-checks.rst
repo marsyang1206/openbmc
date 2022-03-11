@@ -28,7 +28,7 @@ error form along with an explanation.
 .. note::
 
    -  At the end of each message, the name of the associated QA test (as
-      listed in the ":ref:`insane.bbclass <ref-classes-insane>`"
+      listed in the ":ref:`ref-classes-insane`"
       section) appears within square brackets.
 
    -  As mentioned, this list of error and warning messages is for QA
@@ -151,7 +151,7 @@ Errors and Warnings
    occur if you add a path which contains a ``.debug`` directory and do
    not explicitly add the ``.debug`` directory to the ``-dbg`` package.
    If this is the case, add the ``.debug`` directory explicitly to
-   ``FILES_${PN}-dbg``. See :term:`FILES` for additional
+   ``FILES:${PN}-dbg``. See :term:`FILES` for additional
    information on :term:`FILES`.
 
     
@@ -435,7 +435,7 @@ Errors and Warnings
    (e.g. :term:`PN` happens to be the same as :term:`MACHINE`
    or :term:`DISTRO`), it can have unexpected
    consequences. For example, assignments such as
-   ``FILES_${PN} = "xyz"`` effectively turn into ``FILES = "xyz"``.
+   ``FILES:${PN} = "xyz"`` effectively turn into ``FILES = "xyz"``.
    Rename your recipe (or if :term:`PN` is being set explicitly, change the
    :term:`PN` value) so that the conflict does not occur. See
    :term:`FILES` for additional information.
@@ -749,7 +749,7 @@ either raise a warning or an error message, using the
 variables, respectively. You can also disable checks within a particular
 recipe using :term:`INSANE_SKIP`. For information on
 how to work with the QA checks, see the
-":ref:`insane.bbclass <ref-classes-insane>`" section.
+":ref:`ref-classes-insane`" section.
 
 .. note::
 

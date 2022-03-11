@@ -6,11 +6,10 @@ LICENSE = "GPLv2+"
 LIC_FILES_CHKSUM = "file://psplash.h;beginline=1;endline=8;md5=8f232c1e95929eacab37f00900580224"
 DEPENDS = "gdk-pixbuf-native"
 
-SRCREV = "0a902f7cd875ccf018456451be369f05fa55f962"
+SRCREV = "44afb7506d43cca15582b4c5b90ba5580344d75d"
 PV = "0.1+git${SRCPV}"
-PR = "r15"
 
-SRC_URI = "git://git.yoctoproject.org/${BPN} \
+SRC_URI = "git://git.yoctoproject.org/${BPN};branch=master \
            file://psplash-init \
            file://psplash-start.service \
            file://psplash-systemd.service \
@@ -109,9 +108,9 @@ do_install:append() {
 	fi
 
 	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
-		install -d ${D}${systemd_unitdir}/system
-		install -m 644 ${WORKDIR}/psplash-start.service ${D}/${systemd_unitdir}/system
-		install -m 644 ${WORKDIR}/psplash-systemd.service ${D}/${systemd_unitdir}/system
+		install -d ${D}${systemd_system_unitdir}
+		install -m 644 ${WORKDIR}/psplash-start.service ${D}/${systemd_system_unitdir}
+		install -m 644 ${WORKDIR}/psplash-systemd.service ${D}/${systemd_system_unitdir}
 	fi
 
 	install -d ${D}${bindir}

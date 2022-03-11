@@ -6,7 +6,7 @@ LIC_FILES_CHKSUM = "file://LICENSE.md;md5=5486c0df458c74c85828e0cdbffd499e"
 
 SRCREV = "cc05b288b6d1660ab04c6cf01173f1bb62e6f5dd"
 SRC_URI = " \
-    git://github.com/baldurk/${BPN}.git;protocol=http;branch=v1.x \
+    git://github.com/baldurk/${BPN}.git;protocol=http;branch=v1.x;protocol=https \
     file://0001-renderdoc-use-xxd-instead-of-cross-compiling-shim-bi.patch \
 "
 S = "${WORKDIR}/git"
@@ -15,7 +15,7 @@ DEPENDS += "virtual/libx11 virtual/libgl libxcb xcb-util-keysyms vim-native"
 
 RDEPENDS:${PN} = "libxcb xcb-util-keysyms"
 
-inherit cmake python3native features_check
+inherit cmake pkgconfig python3native features_check
 
 REQUIRED_DISTRO_FEATURES = "x11 opengl"
 

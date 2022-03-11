@@ -24,6 +24,7 @@ SRC_URI = "${APACHE_MIRROR}/apr/${BPN}-${PV}.tar.bz2 \
            file://libtoolize_check.patch \
            file://0001-Add-option-to-disable-timed-dependant-tests.patch \
            file://autoconf270.patch \
+           file://CVE-2021-35940.patch \
            "
 
 SRC_URI[md5sum] = "7a14a83d664e87599ea25ff4432e48a7"
@@ -62,7 +63,7 @@ MULTILIB_SCRIPTS = "${PN}-dev:${bindir}/apr-1-config \
                     ${PN}-dev:${datadir}/build-1/apr_rules.mk"
 
 FILES:${PN}-dev += "${libdir}/apr.exp ${datadir}/build-1/*"
-RDEPENDS:${PN}-dev += "bash"
+RDEPENDS:${PN}-dev += "bash libtool"
 
 RDEPENDS:${PN}-ptest += "libgcc"
 
@@ -79,6 +80,8 @@ do_install:append() {
 }
 
 do_install:append:class-target() {
+	rm -f ${D}${datadir}/build-1/libtool
+	sed -i s,LIBTOOL=.*,LIBTOOL=libtool,g ${D}${datadir}/build-1/apr_rules.mk
 	sed -i -e 's,${DEBUG_PREFIX_MAP},,g' \
 	       -e 's,${STAGING_DIR_HOST},,g' ${D}${datadir}/build-1/apr_rules.mk
 	sed -i -e 's,${STAGING_DIR_HOST},,g' \
@@ -96,12 +99,12 @@ apr_sysroot_preprocess () {
 	cp ${S}/build/apr_rules.mk $d/
 	sed -i s,apr_builddir=.*,apr_builddir=,g $d/apr_rules.mk
 	sed -i s,apr_builders=.*,apr_builders=,g $d/apr_rules.mk
-	sed -i s,LIBTOOL=.*,LIBTOOL=${HOST_SYS}-libtool,g $d/apr_rules.mk
+	sed -i s,LIBTOOL=.*,LIBTOOL=libtool,g $d/apr_rules.mk
 	sed -i s,\$\(apr_builders\),${STAGING_DATADIR}/apr/,g $d/apr_rules.mk
 	cp ${S}/build/mkdir.sh $d/
 	cp ${S}/build/make_exports.awk $d/
 	cp ${S}/build/make_var_export.awk $d/
-	cp ${S}/${HOST_SYS}-libtool ${SYSROOT_DESTDIR}${datadir}/build-1/libtool
+	cp ${S}/libtool ${SYSROOT_DESTDIR}${datadir}/build-1/libtool
 }
 
 do_compile_ptest() {

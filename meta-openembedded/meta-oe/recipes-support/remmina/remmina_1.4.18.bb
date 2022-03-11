@@ -26,10 +26,10 @@ DEPENDS:append:libc-musl = " libexecinfo"
 LDFLAGS:append:libc-musl = " -lexecinfo"
 
 SRCREV = "045862cc7d7dd986b349c68131df2f86b9b1cd9c"
-SRC_URI = "git://gitlab.com/Remmina/Remmina;protocol=https"
+SRC_URI = "git://gitlab.com/Remmina/Remmina;protocol=https;branch=master"
 S = "${WORKDIR}/git"
 
-inherit cmake features_check mime mime-xdg gtk-icon-cache
+inherit cmake features_check mime mime-xdg gtk-icon-cache pkgconfig
 REQUIRED_DISTRO_FEATURES = "x11"
 
 EXTRA_OECMAKE += "-DWITH_APPINDICATOR=OFF -DWITH_GETTEXT=OFF -DWITH_TRANSLATIONS=OFF"

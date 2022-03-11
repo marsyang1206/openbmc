@@ -10,8 +10,8 @@ S = "${WORKDIR}/git"
 inherit meson obmc-phosphor-utils pkgconfig
 inherit systemd
 
-SRC_URI += "git://github.com/openbmc/openpower-proc-control"
-SRCREV = "07e9a6a1ccfc415d24f887feb13bf9af17c7312a"
+SRC_URI += "git://github.com/openbmc/openpower-proc-control;branch=master;protocol=https"
+SRCREV = "d7469407ec4d45cc1c1bd3704be18c7ba7ecdcda"
 
 DEPENDS += " \
         phosphor-logging \
@@ -31,16 +31,17 @@ SYSTEMD_PACKAGES = "${PN}"
 SYSTEMD_SERVICE:${PN} = "${TEMPLATE} ${INSTANCES}"
 
 SYSTEMD_SERVICE:${PN} +=  " \
-                         xyz.openbmc_project.Control.Host.NMI.service \
-                         op-stop-instructions@.service \
-                         op-cfam-reset.service \
-                         ${@bb.utils.contains('OBMC_MACHINE_FEATURES', 'phal', 'set-spi-mux.service', '', d)} \
-                         op-continue-mpreboot@.service \
-                         op-enter-mpreboot@.service \
-                         ${@bb.utils.contains('OBMC_MACHINE_FEATURES', 'phal', 'phal-reinit-devtree.service', '', d)} \
-                         ${@bb.utils.contains('OBMC_MACHINE_FEATURES', 'phal', 'proc-pre-poweroff@.service', '', d)} \
-                         ${@bb.utils.contains('OBMC_MACHINE_FEATURES', 'phal', 'op-reset-host-check@.service', '', d)} \
-                         ${@bb.utils.contains('OBMC_MACHINE_FEATURES', 'phal', 'op-reset-host-clear.service', '', d)} \
-                         ${@bb.utils.contains('OBMC_MACHINE_FEATURES', 'phal', 'phal-import-devtree@.service', '', d)} \
-                         ${@bb.utils.contains('OBMC_MACHINE_FEATURES', 'phal', 'phal-export-devtree@.service', '', d)} \
-                         "
+        op-cfam-reset.service \
+        op-continue-mpreboot@.service \
+        op-enter-mpreboot@.service \
+        op-stop-instructions@.service \
+        xyz.openbmc_project.Control.Host.NMI.service \
+        ${@bb.utils.contains('MACHINE_FEATURES', 'phal', 'op-reset-host-check@.service', '', d)} \
+        ${@bb.utils.contains('MACHINE_FEATURES', 'phal', 'op-reset-host-clear.service', '', d)} \
+        ${@bb.utils.contains('MACHINE_FEATURES', 'phal', 'phal-export-devtree@.service', '', d)} \
+        ${@bb.utils.contains('MACHINE_FEATURES', 'phal', 'phal-import-devtree@.service', '', d)} \
+        ${@bb.utils.contains('MACHINE_FEATURES', 'phal', 'phal-reinit-devtree.service', '', d)} \
+        ${@bb.utils.contains('MACHINE_FEATURES', 'phal', 'proc-pre-poweroff@.service', '', d)} \
+        ${@bb.utils.contains('MACHINE_FEATURES', 'phal', 'set-spi-mux.service', '', d)} \
+        ${@bb.utils.contains('MACHINE_FEATURES', 'phal', 'phal-create-boottime-guard-indicator.service', '', d)} \
+        "

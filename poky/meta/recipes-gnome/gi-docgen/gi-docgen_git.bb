@@ -10,8 +10,8 @@ LIC_FILES_CHKSUM = "file://gi-docgen.py;beginline=1;endline=5;md5=2dc0f1f0120247
 
 SRC_URI = "git://gitlab.gnome.org/GNOME/gi-docgen.git;protocol=https;branch=main"
 
-PV = "2021.6"
-SRCREV = "cb76996ba9ef7a1634ab9bde30c77c3bbb47c8db"
+PV = "2021.8"
+SRCREV = "a284455af9b3cad179900f6e1f12b59a3d40c06b"
 
 S = "${WORKDIR}/git"
 

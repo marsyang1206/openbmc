@@ -26,14 +26,15 @@ RDEPENDS:${PN}-chassis = " \
         phosphor-hostlogger \
         phosphor-sel-logger \
         phosphor-logging \
-        virtual/obmc-gpio-presence \
         "
 
 SUMMARY:${PN}-system = "Ampere System"
 RDEPENDS:${PN}-system = " \
+        smbios-mdr \
         "
 
 SUMMARY:${PN}-flash = "Ampere Flash"
 RDEPENDS:${PN}-flash = " \
         ampere-flash-utils \
+        phosphor-software-manager \
         "

@@ -9,8 +9,8 @@ inherit systemd
 inherit obmc-phosphor-systemd
 
 DEPENDS += "systemd"
-RDEPENDS_${PN} += "libsystemd"
-RDEPENDS_${PN} += "bash"
+RDEPENDS:${PN} += "libsystemd"
+RDEPENDS:${PN} += "bash"
 
 SRC_URI = " \
     file://init_once.sh \
@@ -18,13 +18,13 @@ SRC_URI = " \
     "
 
 SYSTEMD_PACKAGES = "${PN}"
-SYSTEMD_SERVICE_${PN} = " \
+SYSTEMD_SERVICE:${PN} = " \
     host-powerctrl.service \
     "
 
 do_install () {
-    install -d ${D}${sbindir}
-    install -m 0755 ${WORKDIR}/init_once.sh ${D}${sbindir}/
+    install -d ${D}${libexecdir}/${PN}
+    install -m 0755 ${WORKDIR}/init_once.sh ${D}${libexecdir}/${PN}/init_once.sh
     install -d ${D}${systemd_unitdir}/system/
     install -m 0644 ${WORKDIR}/host-powerctrl.service ${D}${systemd_unitdir}/system
 }

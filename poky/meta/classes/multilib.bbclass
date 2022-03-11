@@ -92,6 +92,10 @@ multilib_virtclass_handler[eventmask] = "bb.event.RecipePreFinalise"
 
 python __anonymous () {
     if bb.data.inherits_class('image', d):
+        # set rpm preferred file color for 32-bit multilib image
+        if d.getVar("SITEINFO_BITS") == "32":
+            d.setVar("RPM_PREFER_ELF_ARCH", "1")
+
         variant = d.getVar("BBEXTENDVARIANT")
         import oe.classextend
 
@@ -196,7 +200,7 @@ PACKAGEFUNCS:append = " do_package_qa_multilib"
 python do_package_qa_multilib() {
 
     def check_mlprefix(pkg, var, mlprefix):
-        values = bb.utils.explode_deps(d.getVar('%s_%s' % (var, pkg)) or d.getVar(var) or "")
+        values = bb.utils.explode_deps(d.getVar('%s:%s' % (var, pkg)) or d.getVar(var) or "")
         candidates = []
         for i in values:
             if i.startswith('virtual/'):
@@ -210,7 +214,7 @@ python do_package_qa_multilib() {
         if len(candidates) > 0:
             msg = "%s package %s - suspicious values '%s' in %s" \
                    % (d.getVar('PN'), pkg, ' '.join(candidates), var)
-            package_qa_handle_error("multilib", msg, d)
+            oe.qa.handle_error("multilib", msg, d)
 
     ml = d.getVar('MLPREFIX')
     if not ml:
@@ -228,4 +232,5 @@ python do_package_qa_multilib() {
         check_mlprefix(pkg, 'RSUGGESTS', ml)
         check_mlprefix(pkg, 'RREPLACES', ml)
         check_mlprefix(pkg, 'RCONFLICTS', ml)
+    oe.qa.exit_if_errors(d)
 }

@@ -8,15 +8,12 @@ PV = "0.1+git${SRCPV}"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=86d3f3a95c324c9479bd8986968f4327"
 
-SRC_URI = "git://github.com/openbmc/phosphor-certificate-manager"
-SRCREV = "811a29e1941db0157f49d2e05491be945f7b2f07"
+SRC_URI = "git://github.com/openbmc/phosphor-certificate-manager;branch=master;protocol=https"
+SRCREV = "6de54aba4093e35da24fc72caab5514f8bf30823"
 
-inherit autotools \
-        pkgconfig \
-        obmc-phosphor-systemd
+inherit meson pkgconfig systemd
 
 DEPENDS = " \
-        autoconf-archive-native \
         openssl \
         phosphor-dbus-interfaces \
         phosphor-logging \
@@ -26,11 +23,20 @@ DEPENDS = " \
 
 S = "${WORKDIR}/git"
 
-EXTRA_OECONF += "--disable-tests"
+EXTRA_OEMESON += "-Dtests=disabled"
 
-CERT_TMPL = "phosphor-certificate-manager@.service"
-SYSTEMD_SERVICE:${PN} = "${CERT_TMPL}"
+SYSTEMD_SERVICE:${PN} = "phosphor-certificate-manager@.service"
 
-PACKAGECONFIG ??= ""
-PACKAGECONFIG[ibm-hypervisor-cert] = "--enable-ca-cert-extension,,"
-SYSTEMD_SERVICE:${PN} += "${@bb.utils.contains('PACKAGECONFIG', 'ibm-hypervisor-cert', 'bmc-vmi-ca-manager.service', '', d)}"
+PACKAGECONFIG ??= "bmcweb-cert nslcd-authority-cert"
+PACKAGECONFIG[ibm-hypervisor-cert] = "-Dca-cert-extension=enabled,-Dca-cert-extension=disabled"
+PACKAGECONFIG[bmcweb-cert] = "-Dconfig-bmcweb=enabled,-Dconfig-bmcweb=disabled"
+PACKAGECONFIG[nslcd-authority-cert] = "-Dconfig-nslcd=enabled,-Dconfig-nslcd=disabled"
+
+SYSTEMD_SERVICE:${PN} = " \
+        phosphor-certificate-manager@.service \
+        ${@bb.utils.contains('PACKAGECONFIG', 'ibm-hypervisor-cert', 'bmc-vmi-ca-manager.service', '', d)} \
+        ${@bb.utils.contains('PACKAGECONFIG', 'nslcd-authority-cert', 'phosphor-certificate-manager@authority.service', '', d)} \
+        ${@bb.utils.contains('PACKAGECONFIG', 'bmcweb', 'phosphor-certificate-manager@bmcweb.service', '', d)} \
+        "
+
+FILES:${PN}:append = " ${systemd_system_unitdir}/* ${datadir}/dbus-1"

@@ -9,15 +9,15 @@ LIC_FILES_CHKSUM = "file://LICENCE.TXT;md5=75b02c2872421380bbd47781d2bd75d3"
 
 S = "${WORKDIR}/git"
 
-inherit features_check
+inherit autotools cmake features_check pkgconfig
+
 REQUIRED_DISTRO_FEATURES = "x11 pam"
 
-inherit autotools cmake
 B = "${S}"
 
 SRCREV = "540bfc3278e396321124d4b18a798ac2bc18b6ca"
 
-SRC_URI = "git://github.com/TigerVNC/tigervnc.git;branch=1.11-branch \
+SRC_URI = "git://github.com/TigerVNC/tigervnc.git;branch=1.11-branch;protocol=https \
            file://0002-do-not-build-tests-sub-directory.patch \
            file://0003-add-missing-dynamic-library-to-FLTK_LIBRARIES.patch \
            file://0004-tigervnc-add-fPIC-option-to-COMPILE_FLAGS.patch \

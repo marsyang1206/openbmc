@@ -43,7 +43,7 @@ EXTRA_OEMAKE = "-e MAKEFLAGS="
 
 do_compile() {
 	# apmd doesn't use whole autotools. Just libtool for installation
-	oe_runmake "LIBTOOL=${STAGING_BINDIR_CROSS}/${HOST_SYS}-libtool" apm apmd
+	oe_runmake apm apmd
 }
 
 do_install() {
@@ -73,10 +73,10 @@ do_install() {
 	sed -e 's,/usr/sbin,${sbindir},g; s,/etc,${sysconfdir},g;' ${WORKDIR}/init > ${D}${sysconfdir}/init.d/apmd
 	chmod 755 ${D}${sysconfdir}/init.d/apmd
 
-	install -d ${D}${systemd_unitdir}/system
-	install -m 0644 ${WORKDIR}/apmd.service ${D}${systemd_unitdir}/system/
+	install -d ${D}${systemd_system_unitdir}
+	install -m 0644 ${WORKDIR}/apmd.service ${D}${systemd_system_unitdir}/
 	sed -i -e 's,@SYSCONFDIR@,${sysconfdir},g' \
-		-e 's,@SBINDIR@,${sbindir},g' ${D}${systemd_unitdir}/system/apmd.service
+		-e 's,@SBINDIR@,${sbindir},g' ${D}${systemd_system_unitdir}/apmd.service
 }
 
 PACKAGES =+ "libapm apm"

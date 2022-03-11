@@ -148,6 +148,30 @@ class BuildhistoryTests(BuildhistoryBase):
         self.run_buildhistory_operation(target, target_config="PR = \"r1\"", change_bh_location=True)
         self.run_buildhistory_operation(target, target_config="PR = \"r0\"", change_bh_location=False, expect_error=True, error_regex=error)
 
+    def test_fileinfo(self):
+        self.config_buildhistory()
+        bitbake('hicolor-icon-theme')
+        history_dir = get_bb_var('BUILDHISTORY_DIR_PACKAGE', 'hicolor-icon-theme')
+        self.assertTrue(os.path.isdir(history_dir), 'buildhistory dir was not created.')
+
+        def load_bh(f):
+            d = {}
+            for line in open(f):
+                split = [s.strip() for s in line.split('=', 1)]
+                if len(split) > 1:
+                    d[split[0]] = split[1]
+            return d
+
+        data = load_bh(os.path.join(history_dir, 'hicolor-icon-theme', 'latest'))
+        self.assertIn('FILELIST', data)
+        self.assertEqual(data['FILELIST'], '/usr/share/icons/hicolor/index.theme')
+        self.assertGreater(int(data['PKGSIZE']), 0)
+
+        data = load_bh(os.path.join(history_dir, 'hicolor-icon-theme-dev', 'latest'))
+        if 'FILELIST' in data:
+            self.assertEqual(data['FILELIST'], '')
+        self.assertEqual(int(data['PKGSIZE']), 0)
+
 class ArchiverTest(OESelftestTestCase):
     def test_arch_work_dir_and_export_source(self):
         """
@@ -159,8 +183,8 @@ class ArchiverTest(OESelftestTestCase):
         deploy_dir_src = get_bb_var('DEPLOY_DIR_SRC')
         pkgs_path = g.glob(str(deploy_dir_src) + "/allarch*/xcurs*")
         src_file_glob = str(pkgs_path[0]) + "/xcursor*.src.rpm"
-        tar_file_glob = str(pkgs_path[0]) + "/xcursor*.tar.gz"
-        self.assertTrue((g.glob(src_file_glob) and g.glob(tar_file_glob)), "Couldn't find .src.rpm and .tar.gz files under %s/allarch*/xcursor*" % deploy_dir_src)
+        tar_file_glob = str(pkgs_path[0]) + "/xcursor*.tar.xz"
+        self.assertTrue((g.glob(src_file_glob) and g.glob(tar_file_glob)), "Couldn't find .src.rpm and .tar.xz files under %s/allarch*/xcursor*" % deploy_dir_src)
 
 class ToolchainOptions(OESelftestTestCase):
     def test_toolchain_fortran(self):

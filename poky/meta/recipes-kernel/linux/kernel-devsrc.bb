@@ -48,7 +48,7 @@ do_install() {
     mkdir -p ${D}/usr/src
     (
 	cd ${D}/usr/src
-	lnr ${D}${KERNEL_BUILD_ROOT}${KERNEL_VERSION}/source kernel
+	ln -rs ${D}${KERNEL_BUILD_ROOT}${KERNEL_VERSION}/source kernel
     )
 
     # for on target purposes, we unify build and source
@@ -109,8 +109,8 @@ do_install() {
 	    fi
 	fi
 
-	if [ "${ARCH}" = "arm64" ]; then
-	    cp -a --parents arch/arm64/kernel/vdso/vdso.lds $kerneldir/build/
+	if [ "${ARCH}" = "arm64" -o "${ARCH}" = "riscv" ]; then
+	    cp -a --parents arch/${ARCH}/kernel/vdso/vdso.lds $kerneldir/build/
 	fi
 	if [ "${ARCH}" = "powerpc" ]; then
 	    cp -a --parents arch/powerpc/kernel/vdso32/vdso32.lds $kerneldir/build 2>/dev/null || :
@@ -185,6 +185,12 @@ do_install() {
 	    cp -a --parents arch/${ARCH}/kernel/vdso32/* $kerneldir/build/ 2>/dev/null || :
 	    cp -a --parents arch/${ARCH}/kernel/vdso64/* $kerneldir/build/ 2>/dev/null || :
 	fi
+	if [ "${ARCH}" = "riscv" ]; then
+            cp -a --parents arch/riscv/kernel/vdso/*gettimeofday.* $kerneldir/build/
+            cp -a --parents arch/riscv/kernel/vdso/note.S $kerneldir/build/
+            cp -a --parents arch/riscv/kernel/vdso/gen_vdso_offsets.sh $kerneldir/build/
+	    cp -a --parents arch/riscv/kernel/vdso/* $kerneldir/build/ 2>/dev/null || :
+	fi
 
 	# include the machine specific headers for ARM variants, if available.
 	if [ "${ARCH}" = "arm" ]; then
@@ -220,10 +226,10 @@ do_install() {
 
 	if [ "${ARCH}" = "x86" ]; then
 	    # files for 'make prepare' to succeed with kernel-devel
-	    cp -a --parents $(find arch/x86 -type f -name "syscall_32.tbl") $kerneldir/build/
-	    cp -a --parents $(find arch/x86 -type f -name "syscalltbl.sh") $kerneldir/build/
-	    cp -a --parents $(find arch/x86 -type f -name "syscallhdr.sh") $kerneldir/build/
-	    cp -a --parents $(find arch/x86 -type f -name "syscall_64.tbl") $kerneldir/build/
+	    cp -a --parents $(find arch/x86 -type f -name "syscall_32.tbl") $kerneldir/build/ 2>/dev/null || :
+	    cp -a --parents $(find arch/x86 -type f -name "syscalltbl.sh") $kerneldir/build/ 2>/dev/null || :
+	    cp -a --parents $(find arch/x86 -type f -name "syscallhdr.sh") $kerneldir/build/ 2>/dev/null || :
+	    cp -a --parents $(find arch/x86 -type f -name "syscall_64.tbl") $kerneldir/build/ 2>/dev/null || :
 	    cp -a --parents arch/x86/tools/relocs_32.c $kerneldir/build/
 	    cp -a --parents arch/x86/tools/relocs_64.c $kerneldir/build/
 	    cp -a --parents arch/x86/tools/relocs.c $kerneldir/build/
@@ -322,7 +328,7 @@ RDEPENDS:${PN} = "bc python3 flex bison ${TCLIBC}-utils"
 # 4.15+ needs these next two RDEPENDS
 RDEPENDS:${PN} += "openssl-dev util-linux"
 # and x86 needs a bit more for 4.15+
-RDEPENDS:${PN} += "${@bb.utils.contains('ARCH', 'x86', 'elfutils', '', d)}"
+RDEPENDS:${PN} += "${@bb.utils.contains('ARCH', 'x86', 'elfutils-dev', '', d)}"
 # 5.8+ needs gcc-plugins libmpc-dev
 RDEPENDS:${PN} += "gcc-plugins libmpc-dev"
 # 5.13+ needs awk for arm64

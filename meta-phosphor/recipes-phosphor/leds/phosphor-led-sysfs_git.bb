@@ -16,11 +16,11 @@ DEPENDS += "boost"
 
 DBUS_SERVICE:${PN} += "xyz.openbmc_project.led.controller@.service"
 
-EXTRA_OEMESON += "-Dtests=disabled"
+EXTRA_OEMESON:append = " -Dtests=disabled"
 
-SRC_URI += "git://github.com/openbmc/phosphor-led-sysfs"
+SRC_URI += "git://github.com/openbmc/phosphor-led-sysfs;branch=master;protocol=https"
 SRC_URI += "file://70-leds.rules"
-SRCREV = "5ee5f3b7162cb5d8e6780a9571e0b0ca3daf7c6e"
+SRCREV = "1f2b932bb9ef88d97a6313f4dc087fb1f2eb399a"
 S = "${WORKDIR}/git"
 
 do_install:append() {

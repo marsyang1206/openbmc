@@ -6,13 +6,13 @@ DEPENDS = "readline"
 
 PV = "2.3.3+git${SRCPV}"
 
-SRC_URI = "git://github.com/freesmartphone/mdbus.git;protocol=http \
+SRC_URI = "git://github.com/freesmartphone/mdbus.git;protocol=http;branch=master;protocol=https \
            file://0001-Fix-arguments-in-GLib.DBusSignalCallback-for-Vala-0..patch \
            "
 SRCREV = "28202692d0b441000f4ddb8f347f72d1355021aa"
 
 S = "${WORKDIR}/git"
 
-inherit autotools vala
+inherit autotools pkgconfig vala
 
 EXTRA_OECONF += "--enable-vala"

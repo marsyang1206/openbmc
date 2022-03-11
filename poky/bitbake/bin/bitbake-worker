@@ -6,6 +6,7 @@
 import os
 import sys
 import warnings
+warnings.simplefilter("default")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(sys.argv[0])), 'lib'))
 from bb import fetch2
 import logging
@@ -16,6 +17,8 @@ import signal
 import pickle
 import traceback
 import queue
+import shlex
+import subprocess
 from multiprocessing import Lock
 from threading import Thread
 
@@ -145,8 +148,13 @@ def fork_off_task(cfg, data, databuilder, workerdata, fn, task, taskname, taskha
     # a fork() or exec*() activates PSEUDO...
 
     envbackup = {}
+    fakeroot = False
     fakeenv = {}
     umask = None
+
+    uid = os.getuid()
+    gid = os.getgid()
+
 
     taskdep = workerdata["taskdeps"][fn]
     if 'umask' in taskdep and taskname in taskdep['umask']:
@@ -164,6 +172,7 @@ def fork_off_task(cfg, data, databuilder, workerdata, fn, task, taskname, taskha
 
     # We can't use the fakeroot environment in a dry run as it possibly hasn't been built
     if 'fakeroot' in taskdep and taskname in taskdep['fakeroot'] and not dry_run:
+        fakeroot = True
         envvars = (workerdata["fakerootenv"][fn] or "").split()
         for key, value in (var.split('=') for var in envvars):
             envbackup[key] = os.environ.get(key)
@@ -232,6 +241,7 @@ def fork_off_task(cfg, data, databuilder, workerdata, fn, task, taskname, taskha
                 the_data = databuilder.mcdata[mc]
                 the_data.setVar("BB_WORKERCONTEXT", "1")
                 the_data.setVar("BB_TASKDEPDATA", taskdepdata)
+                the_data.setVar('BB_CURRENTTASK', taskname.replace("do_", ""))
                 if cfg.limited_deps:
                     the_data.setVar("BB_LIMITEDDEPS", "1")
                 the_data.setVar("BUILDNAME", workerdata["buildname"])
@@ -250,6 +260,10 @@ def fork_off_task(cfg, data, databuilder, workerdata, fn, task, taskname, taskha
                 the_data.setVar('BB_UNIHASH', unihash)
 
                 bb.utils.set_process_name("%s:%s" % (the_data.getVar("PN"), taskname.replace("do_", "")))
+
+                if not the_data.getVarFlag(taskname, 'network', False):
+                    logger.debug("Attempting to disable network")
+                    bb.utils.disable_network(uid, gid)
 
                 # exported_vars() returns a generator which *cannot* be passed to os.environ.update() 
                 # successfully. We also need to unset anything from the environment which shouldn't be there 
@@ -282,7 +296,13 @@ def fork_off_task(cfg, data, databuilder, workerdata, fn, task, taskname, taskha
             try:
                 if dry_run:
                     return 0
-                return bb.build.exec_task(fn, taskname, the_data, cfg.profile)
+                try:
+                    ret = bb.build.exec_task(fn, taskname, the_data, cfg.profile)
+                finally:
+                    if fakeroot:
+                        fakerootcmd = shlex.split(the_data.getVar("FAKEROOTCMD"))
+                        subprocess.run(fakerootcmd + ['-S'], check=True, stdout=subprocess.PIPE)
+                return ret
             except:
                 os._exit(1)
         if not profiling:
@@ -406,7 +426,11 @@ class BitbakeWorker(object):
         if self.queue.startswith(b"<" + item + b">"):
             index = self.queue.find(b"</" + item + b">")
             while index != -1:
-                func(self.queue[(len(item) + 2):index])
+                try:
+                    func(self.queue[(len(item) + 2):index])
+                except pickle.UnpicklingError:
+                    workerlog_write("Unable to unpickle data: %s\n" % ":".join("{:02x}".format(c) for c in self.queue))
+                    raise
                 self.queue = self.queue[(index + len(item) + 3):]
                 index = self.queue.find(b"</" + item + b">")
 
@@ -513,9 +537,11 @@ except BaseException as e:
         import traceback
         sys.stderr.write(traceback.format_exc())
         sys.stderr.write(str(e))
+finally:
+    worker_thread_exit = True
+    worker_thread.join()
 
-worker_thread_exit = True
-worker_thread.join()
-
-workerlog_write("exitting")
+workerlog_write("exiting")
+if not normalexit:
+    sys.exit(1)
 sys.exit(0)

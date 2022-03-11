@@ -5,7 +5,7 @@ PR = "r1"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/Apache-2.0;md5=89aea4e17d99a7cacdbeed46a0096b10"
 
-RDEPENDS_${PN} += "bash"
+RDEPENDS:${PN} += "bash"
 
 SRC_URI = " \
     file://kudo.sh \
@@ -15,7 +15,7 @@ SRC_URI = " \
 SYSTEMD_PACKAGES = "${PN}"
 
 do_install () {
-    install -d ${D}/${sbindir}
-    install -m 0755 ${WORKDIR}/kudo.sh ${D}/${sbindir}/kudo.sh
-    install -m 0755 ${WORKDIR}/kudo-ras.sh ${D}/${sbindir}/kudo-ras.sh
+    install -d ${D}${sbindir}
+    install -m 0755 ${WORKDIR}/kudo.sh ${D}${sbindir}/kudo.sh
+    install -m 0755 ${WORKDIR}/kudo-ras.sh ${D}${sbindir}/kudo-ras.sh
 }

@@ -22,8 +22,8 @@ def ipmi_whitelists(d):
     return ' '.join(whitelists)
 
 PACKAGECONFIG ??= ""
-PACKAGECONFIG[dynamic-sensors] = "--enable-dynamic-sensors,--disable-dynamic-sensors"
-PACKAGECONFIG[hybrid-sensors] = "--enable-hybrid-sensors,--disable-hybrid-sensors"
+PACKAGECONFIG[dynamic-sensors] = "--enable-dynamic-sensors"
+PACKAGECONFIG[hybrid-sensors] = "--enable-hybrid-sensors"
 
 DEPENDS += "autoconf-archive-native"
 DEPENDS += "nlohmann-json"

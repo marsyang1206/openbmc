@@ -1,11 +1,8 @@
 #!/bin/bash
-#openbmc qemu
 set -x
-./gen_mmc.sh  evb-mars /home/mars/repo/openbmc/build 1G
-qemu_exec=/home/mars/repo/o_qemu/build/qemu-system-arm
-mmc_image=mmc-evb-mars.img
+qemu_exec=/home/mars/repo/qemu_ast6/build/qemu-system-arm
+mmc_image=build/tmp/deploy/images/evb-mars/emmc.bin
 
 slirpvde --dhcp &
 
-$qemu_exec -M ast2600-evb -m 1G -drive file=$mmc_image,format=raw,if=sd,index=2 -nodefaults -nographic  -serial  mon:stdio -D ./log -d unimp
-#$qemu_exec -M ast2600-evb -m 1G -drive file=$mmc_image,format=raw,if=sd,index=2 -nodefaults -nographic  -serial  mon:stdio -s -S
+$qemu_exec -M ast2600-evb,boot-emmc=true -m 1G -drive file=$mmc_image,format=raw,if=sd,index=2 -nodefaults -nographic  -serial  mon:stdio -qmp unix:$HOME/qmp.sock,server,nowait -net nic -net vde
